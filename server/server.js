@@ -335,15 +335,10 @@ app.post('/api/auth/send-otp', async (req, res) => {
     text: `Your NimoCode AI verification code is: ${otpCode}\n\nExpires in 10 minutes.`
   };
 
-  // 1st: Brevo HTTPS API (no domain required, works on Render free tier)
+  // Send via Brevo SMTP relay (primary — no domain required)
   let emailSent = await sendEmailViaBrevo(emailPayload);
 
-  // 2nd: Resend HTTPS API fallback
-  if (!emailSent) {
-    emailSent = await sendEmailViaResend(emailPayload);
-  }
-
-  // 3rd: Nodemailer SMTP fallback (may be blocked on Render free tier)
+  // Fallback: Gmail SMTP (may be blocked on Render free tier)
   if (!emailSent) {
     const transporter = createMailTransporter();
     if (transporter) {
@@ -351,14 +346,14 @@ app.post('/api/auth/send-otp', async (req, res) => {
         await transporter.sendMail({
           from: `"NimoCode AI" <${process.env.GMAIL_USER || 'nimocodeai@gmail.com'}>`,
           to: email,
-          subject: `NimoCode AI — Your Verification Code: ${otpCode}`,
+          subject: emailPayload.subject,
           html: emailHtml,
-          text: `Your NimoCode AI verification code is: ${otpCode}\n\nExpires in 10 minutes.`
+          text: emailPayload.text
         });
         emailSent = true;
-        console.log(`[SMTP] ✅ Verification email sent to ${email}`);
+        console.log(`[Gmail SMTP] ✅ Verification email sent to ${email}`);
       } catch (err) {
-        console.error(`[SMTP Error]`, err.message);
+        console.error(`[Gmail SMTP Error]`, err.message);
       }
     }
   }
@@ -410,13 +405,10 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     text: `Hello,\n\nReset your NimoCode AI password here:\n${resetLink}\n\nExpires in 1 hour.`
   };
 
-  // 1st: Brevo HTTPS (no domain required)
+  // 1st: Brevo SMTP relay (primary)
   let emailSent = await sendEmailViaBrevo(resetPayload);
 
-  // 2nd: Resend HTTPS fallback
-  if (!emailSent) emailSent = await sendEmailViaResend(resetPayload);
-
-  // 3rd: Nodemailer SMTP fallback
+  // 2nd: Gmail SMTP fallback
   if (!emailSent) {
     const transporter = createMailTransporter();
     if (transporter) {
@@ -429,9 +421,9 @@ app.post('/api/auth/forgot-password', async (req, res) => {
           text: resetPayload.text
         });
         emailSent = true;
-        console.log(`[Password Reset Mail] ✅ Email dispatched to ${targetEmail}`);
+        console.log(`[Gmail SMTP] ✅ Password reset email dispatched to ${targetEmail}`);
       } catch (err) {
-        console.error(`[Password Reset Error]:`, err.message);
+        console.error(`[Gmail SMTP Error]:`, err.message);
       }
     }
   }
@@ -475,11 +467,6 @@ app.post('/api/admin/broadcast-email', async (req, res) => {
   const { subject, message, targetEmail } = req.body;
   if (!subject || !message) return res.status(400).json({ error: 'Subject and message required.' });
 
-  const transporter = createMailTransporter();
-  if (!transporter) {
-    return res.status(500).json({ error: 'Gmail SMTP credentials not configured.' });
-  }
-
   let recipientEmails = [];
   if (targetEmail && targetEmail !== 'ALL') {
     recipientEmails = [targetEmail.trim()];
@@ -500,52 +487,38 @@ app.post('/api/admin/broadcast-email', async (req, res) => {
     recipientEmails = ['nimocodeai@gmail.com'];
   }
 
+  const broadcastHtml = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 20px; background-color: #ffffff;">
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="width:98px;height:98px;background:#09090b;border-radius:24px;margin:0 auto 16px;text-align:center;line-height:98px;color:#fff;font-size:38px;font-weight:900;">&lt;/&gt;</div>
+      </div>
+      <div style="background:#09090b;color:#fff;padding:16px 24px;border-radius:14px;text-align:center;margin-bottom:24px;">
+        <h2 style="margin:0;font-size:20px;font-weight:800;">NimoCode AI Platform Announcement</h2>
+      </div>
+      <h3 style="color:#09090b;font-size:18px;font-weight:700;margin:0 0 12px;">${subject}</h3>
+      <div style="color:#3f3f46;font-size:14px;line-height:1.6;white-space:pre-line;background:#fafafa;border:1px solid #f4f4f5;padding:20px;border-radius:14px;">${message}</div>
+    </div>
+  `;
+
   let sentCount = 0;
   for (const recipient of recipientEmails) {
-    try {
-      await transporter.sendMail({
-        from: `"NimoCode AI Admin" <${process.env.GMAIL_USER || 'nimocodeai@gmail.com'}>`,
-        to: recipient,
-        replyTo: process.env.GMAIL_USER || 'nimocodeai@gmail.com',
-        subject: `📢 Announcement: ${subject}`,
-        text: `${message}\n\n---\nNimoCode AI Competitive Programming Platform`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 20px; background-color: #ffffff;">
-            <div style="text-align: center; margin-bottom: 20px;">
-              <div style="width: 98px; height: 98px; background-color: #09090b; border-radius: 24px; margin: 0 auto 16px auto; text-align: center; line-height: 98px; color: #ffffff; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 38px; font-weight: 900; letter-spacing: -2px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25);">
-                &lt;/&gt;
-              </div>
-            </div>
-
-            <div style="background-color: #09090b; color: #ffffff; padding: 16px 24px; border-radius: 14px; text-align: center; margin-bottom: 24px;">
-              <h2 style="margin: 0; font-size: 20px; font-weight: 800;">NimoCode AI Platform Announcement</h2>
-            </div>
-
-            <h3 style="color: #09090b; font-size: 18px; font-weight: 700; margin: 0 0 12px 0;">${subject}</h3>
-            
-            <div style="color: #3f3f46; font-size: 14px; line-height: 1.6; white-space: pre-line; background-color: #fafafa; border: 1px solid #f4f4f5; padding: 20px; border-radius: 14px;">
-              ${message}
-            </div>
-
-            <p style="color: #a1a1aa; font-size: 11px; margin-top: 24px; text-align: center;">
-              Sent by NimoCode Platform Administration to ${recipient}
-            </p>
-          </div>
-        `,
-        headers: {
-          'X-Mailer': 'NimoCode Admin Broadcast Engine',
-          'X-Priority': '1'
-        }
-      });
+    const sent = await sendEmailViaBrevo({
+      to: recipient,
+      subject: `📢 Announcement: ${subject}`,
+      html: broadcastHtml,
+      text: `${message}\n\n---\nNimoCode AI Competitive Programming Platform`
+    });
+    if (sent) {
       sentCount++;
       console.log(`[Admin Broadcast] ✅ Email sent to ${recipient}`);
-    } catch (err) {
-      console.error(`[Admin Broadcast Error] Failed for ${recipient}:`, err.message);
+    } else {
+      console.error(`[Admin Broadcast] ❌ Failed for ${recipient}`);
     }
   }
 
   return res.json({ success: true, count: sentCount, message: `Successfully sent announcement to ${sentCount} user(s).` });
 });
+
 
 app.post('/api/auth/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
