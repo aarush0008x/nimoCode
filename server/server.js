@@ -34,6 +34,17 @@ try {
   dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 } catch {}
 
+// Health Check API Root Endpoint
+app.get('/api', (req, res) => {
+  res.json({
+    status: 'online',
+    platform: 'NimoCode AI Multilingual Interpreter API Server',
+    version: '2.0.0',
+    database: isConnected ? 'Connected to MongoDB Atlas' : 'Local Storage Engine',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Native MongoDB Driver State
 let mongoDb = null;
 let isConnected = false;
