@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Code2, Send, CheckCircle2, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { getApiUrl } from '../utils/apiConfig';
 
 export const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -16,8 +17,7 @@ export const ForgotPasswordPage: React.FC = () => {
     setErrorMsg('');
 
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
-      const res = await fetch(`${apiBase}/auth/forgot-password`, {
+      const res = await fetch(getApiUrl('/auth/forgot-password'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })

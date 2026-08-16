@@ -333,7 +333,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   const resetToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
   resetTokenStore.set(resetToken, { email: targetEmail, expiresAt: Date.now() + 60 * 60 * 1000 });
 
-  const resetLink = `http://localhost:5173/reset-password?token=${resetToken}&email=${encodeURIComponent(targetEmail)}`;
+  const FRONTEND_URL = process.env.FRONTEND_URL || 'https://nimocode.vercel.app';
+  const resetLink = `${FRONTEND_URL}/reset-password?token=${resetToken}&email=${encodeURIComponent(targetEmail)}`;
 
   console.log(`[Password Reset] 🔑 Reset link for ${targetEmail}: ${resetLink}`);
 
@@ -385,8 +386,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   return res.json({
     success: true,
     emailSent,
-    message: 'If the email exists, a password reset link has been dispatched.',
-    devResetLink: resetLink
+    message: 'If the email exists, a password reset link has been dispatched.'
   });
 });
 

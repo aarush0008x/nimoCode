@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, CheckCircle2, ShieldCheck, RefreshCw, AlertCircle } from 'lucide-react';
+import { getApiUrl } from '../../utils/apiConfig';
 
 interface EmailVerificationModalProps {
   email: string;
@@ -30,8 +31,7 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
     setErrorMsg('');
 
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
-      const res = await fetch(`${apiBase}/auth/verify-otp`, {
+      const res = await fetch(getApiUrl('/auth/verify-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp: otpInput })
@@ -58,8 +58,8 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
   const handleResendOtp = async () => {
     setResendStatus('Resending verification code...');
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
-      await fetch(`${apiBase}/auth/send-otp`, {
+      const apiBase2 = getApiUrl('/auth/send-otp');
+      await fetch(apiBase2, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })

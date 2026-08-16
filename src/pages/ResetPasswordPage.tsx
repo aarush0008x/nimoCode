@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Code2, KeyRound, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
+import { getApiUrl } from '../utils/apiConfig';
 
 export const ResetPasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -31,8 +32,7 @@ export const ResetPasswordPage: React.FC = () => {
     setErrorMsg('');
 
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
-      const res = await fetch(`${apiBase}/auth/reset-password`, {
+      const res = await fetch(getApiUrl('/auth/reset-password'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword })
