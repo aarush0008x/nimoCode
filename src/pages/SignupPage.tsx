@@ -15,6 +15,7 @@ export const SignupPage: React.FC = () => {
   const [usernameTaken, setUsernameTaken] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [devOtpHint, setDevOtpHint] = useState<string | undefined>(undefined);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
 
   const { signup } = useAuth();
   const navigate = useNavigate();
@@ -64,6 +65,13 @@ export const SignupPage: React.FC = () => {
       return;
     }
 
+    if (usernameTaken) {
+      setErrorMsg('Username is already taken. Please choose another username.');
+      return;
+    }
+
+    setIsSendingOtp(true);
+
     // Trigger Google Email Verification
     try {
       const apiBase = import.meta.env.VITE_API_URL || '/api';
@@ -79,6 +87,7 @@ export const SignupPage: React.FC = () => {
     } catch {
       setDevOtpHint('123456');
     } finally {
+      setIsSendingOtp(false);
       setShowVerifyModal(true);
     }
   };
@@ -168,10 +177,10 @@ export const SignupPage: React.FC = () => {
 
           <button
             type="submit"
-            disabled={usernameTaken}
+            disabled={usernameTaken || isSendingOtp}
             className="w-full py-3 rounded-xl bg-neutral-950 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-950 font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 pt-3 disabled:opacity-50"
           >
-            <span>Send Email Verification Code</span>
+            <span>{isSendingOtp ? 'Sending Verification Code...' : 'Send Email Verification Code'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>

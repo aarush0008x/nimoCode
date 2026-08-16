@@ -218,12 +218,12 @@ const createMailTransporter = () => {
 };
 
 app.post('/api/auth/send-otp', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email required' });
+  const email = (req.body?.email || '').trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: 'Valid email address is required.' });
 
   // Generate 6-digit Google Verification Code
   const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-  otpStore.set(email.toLowerCase(), { otpCode, expiresAt: Date.now() + 10 * 60 * 1000 });
+  otpStore.set(email, { otpCode, expiresAt: Date.now() + 10 * 60 * 1000 });
 
   console.log(`[Google Mail Verification] 📩 Verification OTP Code for ${email}: ${otpCode}`);
 

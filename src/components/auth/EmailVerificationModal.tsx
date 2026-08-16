@@ -30,7 +30,8 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
     setErrorMsg('');
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/verify-otp', {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const res = await fetch(`${apiBase}/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp: otpInput })
@@ -57,7 +58,8 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
   const handleResendOtp = async () => {
     setResendStatus('Resending verification code...');
     try {
-      await fetch('http://localhost:5000/api/auth/send-otp', {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      await fetch(`${apiBase}/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
