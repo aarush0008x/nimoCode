@@ -466,6 +466,63 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   return res.status(400).json({ error: 'Invalid 6-digit Google Verification Code. Please try again.' });
 });
 
+app.post('/api/auth/signup', async (req, res) => {
+  const { name, email, username, password } = req.body;
+  if (!username || !email) {
+    return res.status(400).json({ error: 'Username and email are required.' });
+  }
+
+  const cleanUser = username.trim().toLowerCase();
+  const cleanEmail = email.trim().toLowerCase();
+
+  const newUserRecord = {
+    _id: `mongo-${Date.now()}`,
+    rank: 1,
+    name: name || username,
+    username: cleanUser,
+    email: cleanEmail,
+    password: password || 'password123',
+    avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanUser)}`,
+    rating: 1200,
+    solvedCount: 0,
+    level: 1,
+    currentXP: 0,
+    nextLevelXP: 1000,
+    solvedProblemIds: [],
+    role: 'user',
+    createdAt: new Date().toISOString()
+  };
+
+  if (isConnected && mongoDb) {
+    try {
+      const usersCol = mongoDb.collection('users');
+      const existing = await usersCol.findOne({
+        $or: [{ username: cleanUser }, { email: cleanEmail }]
+      });
+
+      if (existing) {
+        return res.status(400).json({ error: 'Username or email is already registered in MongoDB database.' });
+      }
+
+      await usersCol.insertOne(newUserRecord);
+      console.log(`🍃 Saved new user @${cleanUser} directly to MongoDB Atlas!`);
+      return res.json(newUserRecord);
+    } catch (err) {
+      console.log('MongoDB Signup error:', err.message);
+    }
+  }
+
+  const users = getCollection('users');
+  const existing = users.find(u => (u.username || '').toLowerCase() === cleanUser || (u.email || '').toLowerCase() === cleanEmail);
+  if (existing) {
+    return res.status(400).json({ error: 'Username or email is already registered.' });
+  }
+
+  users.push(newUserRecord);
+  saveCollection('users', users);
+  return res.json(newUserRecord);
+});
+
 app.post('/api/auth/login', async (req, res) => {
   const { loginId, password } = req.body;
   const target = (loginId || '').trim().toLowerCase();

@@ -238,8 +238,8 @@ export const db = {
     const updated = [...users, newUser];
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
 
-    // Async sync to MongoDB Backend API
-    fetch(`${API_BASE_URL}/auth/register`, {
+    // Async sync to real MongoDB Backend
+    fetch(`${API_BASE_URL}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData)
