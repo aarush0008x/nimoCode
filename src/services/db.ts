@@ -4,7 +4,7 @@ import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, 
 
 const LEETCODE_2000_PROBLEMS = generateLeetCode2000Problems();
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : 'https://nimocode.onrender.com/api');
 
 const STORAGE_KEYS = {
   PROBLEMS: 'nimocode_problems_v1',

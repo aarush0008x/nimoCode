@@ -29,6 +29,8 @@ interface DbContextType {
 
 const DbContext = createContext<DbContextType | undefined>(undefined);
 
+import { getApiUrl } from '../utils/apiConfig';
+
 export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [problems, setProblems] = useState<Problem[]>(() => db.getProblems());
   const [contests, setContests] = useState<Contest[]>(() => db.getContests());
@@ -49,8 +51,7 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   useEffect(() => {
     const fetchLiveUsers = async () => {
       try {
-        const apiBase = import.meta.env.VITE_API_URL || '/api';
-        const res = await fetch(`${apiBase}/users`);
+        const res = await fetch(getApiUrl('/users'));
         if (res.ok) {
           const apiUsers = await res.json();
           if (Array.isArray(apiUsers) && apiUsers.length > 0) {

@@ -7,6 +7,8 @@ export interface ExecutionOptions {
   isSubmission: boolean;
 }
 
+import { getApiUrl } from './apiConfig';
+
 export const runCodeExecution = async ({
   problem,
   language,
@@ -17,8 +19,7 @@ export const runCodeExecution = async ({
 
   try {
     // 1. Call Backend Multilingual Interpreter Engine
-    const apiBase = import.meta.env.VITE_API_URL || '/api';
-    const res = await fetch(`${apiBase}/execute`, {
+    const res = await fetch(getApiUrl('/execute'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ language, code, problemId: problem.id, isSubmission })

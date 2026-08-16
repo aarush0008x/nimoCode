@@ -6,6 +6,8 @@ import { waf } from '../services/waf';
 
 import { EmailVerificationModal } from '../components/auth/EmailVerificationModal';
 
+import { getApiUrl } from '../utils/apiConfig';
+
 export const SignupPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -27,8 +29,7 @@ export const SignupPage: React.FC = () => {
 
     if (clean.length >= 3) {
       try {
-        const apiBase = import.meta.env.VITE_API_URL || '/api';
-        const res = await fetch(`${apiBase}/auth/check-username`, {
+        const res = await fetch(getApiUrl('/auth/check-username'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: clean })
@@ -74,8 +75,7 @@ export const SignupPage: React.FC = () => {
 
     // Trigger Google Email Verification
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
-      const res = await fetch(`${apiBase}/auth/send-otp`, {
+      const res = await fetch(getApiUrl('/auth/send-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
