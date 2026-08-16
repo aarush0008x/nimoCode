@@ -238,28 +238,61 @@ const customIPv4Lookup = (hostname, options, callback) => {
   });
 };
 
-// Resend HTTPS Email API (works on all cloud hosts including Render free tier)
-const sendEmailViaResend = async ({ to, subject, html, text }) => {
-  const apiKey = (process.env.RESEND_API_KEY || '').trim().replace(/['"]+/g, '');
+// Brevo (Sendinblue) HTTPS Transactional Email API
+// Works without domain ownership — just verify nimocodeai@gmail.com as a sender in Brevo dashboard
+const sendEmailViaBrevo = async ({ to, subject, html, text }) => {
+  const apiKey = (process.env.BREVO_API_KEY || '').trim().replace(/['"]+/g, '');
   if (!apiKey || apiKey.length < 10) {
-    console.log('[Resend] No valid RESEND_API_KEY set, skipping.');
+    console.log('[Brevo] No valid BREVO_API_KEY set, skipping.');
     return false;
   }
+
+  try {
+    const payload = {
+      sender: { name: 'NimoCode AI', email: process.env.GMAIL_USER || 'nimocodeai@gmail.com' },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+      textContent: text
+    };
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      console.error(`[Brevo Error] HTTP ${response.status}: ${errBody}`);
+      return false;
+    }
+
+    const result = await response.json();
+    console.log(`[Brevo] ✅ Email sent to ${to} | messageId: ${result.messageId}`);
+    return true;
+  } catch (err) {
+    console.error('[Brevo Error]', err.message);
+    return false;
+  }
+};
+
+// Resend HTTPS Email API (fallback — requires verified domain)
+const sendEmailViaResend = async ({ to, subject, html, text }) => {
+  const apiKey = (process.env.RESEND_API_KEY || '').trim().replace(/['"]+/g, '');
+  if (!apiKey || apiKey.length < 10) return false;
   try {
     const resend = new Resend(apiKey);
     const fromAddress = process.env.RESEND_FROM || 'NimoCode AI <onboarding@resend.dev>';
-    const { data, error } = await resend.emails.send({
-      from: fromAddress,
-      to,
-      subject,
-      html,
-      text
-    });
+    const { data, error } = await resend.emails.send({ from: fromAddress, to, subject, html, text });
     if (error) {
       console.error('[Resend Error]', JSON.stringify(error));
       return false;
     }
-    console.log(`[Resend] ✅ Email dispatched via HTTPS to ${to} | id: ${data?.id}`);
+    console.log(`[Resend] ✅ Email dispatched to ${to} | id: ${data?.id}`);
     return true;
   } catch (err) {
     console.error('[Resend Error]', err.message);
@@ -313,15 +346,22 @@ app.post('/api/auth/send-otp', async (req, res) => {
     </div>
   `;
 
-  // Try Resend HTTPS API first (works on Render free tier)
-  let emailSent = await sendEmailViaResend({
+  const emailPayload = {
     to: email,
     subject: `NimoCode AI — Your Verification Code: ${otpCode}`,
     html: emailHtml,
     text: `Your NimoCode AI verification code is: ${otpCode}\n\nExpires in 10 minutes.`
-  });
+  };
 
-  // Fallback: Nodemailer SMTP
+  // 1st: Brevo HTTPS API (no domain required, works on Render free tier)
+  let emailSent = await sendEmailViaBrevo(emailPayload);
+
+  // 2nd: Resend HTTPS API fallback
+  if (!emailSent) {
+    emailSent = await sendEmailViaResend(emailPayload);
+  }
+
+  // 3rd: Nodemailer SMTP fallback (may be blocked on Render free tier)
   if (!emailSent) {
     const transporter = createMailTransporter();
     if (transporter) {
@@ -364,48 +404,53 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
   console.log(`[Password Reset] 🔑 Reset link for ${targetEmail}: ${resetLink}`);
 
-  const transporter = createMailTransporter();
-  let emailSent = false;
+  const resetHtml = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 20px; background-color: #ffffff;">
+      <div style="margin-bottom: 24px; text-align: center;">
+        <div style="width:98px;height:98px;background:#09090b;border-radius:24px;margin:0 auto 16px;text-align:center;line-height:98px;color:#fff;font-size:38px;font-weight:900;">&lt;/&gt;</div>
+        <h2 style="color:#09090b;font-size:22px;font-weight:800;margin:0;">Reset Your Password</h2>
+        <p style="color:#71717a;font-size:14px;margin-top:6px;">Click the button below to set a new password for your account.</p>
+      </div>
+      <div style="text-align:center;margin:32px 0;">
+        <a href="${resetLink}" style="display:inline-block;background:#09090b;color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:700;font-size:14px;">Reset Password</a>
+      </div>
+      <p style="color:#a1a1aa;font-size:12px;word-break:break-all;text-align:center;">
+        Or copy &amp; paste this link:<br/>
+        <a href="${resetLink}" style="color:#f59e0b;">${resetLink}</a>
+      </p>
+    </div>
+  `;
 
-  if (transporter) {
-    try {
-      await transporter.sendMail({
-        from: `"NimoCode AI Security" <${process.env.GMAIL_USER || 'nimocodeai@gmail.com'}>`,
-        to: targetEmail,
-        replyTo: process.env.GMAIL_USER || 'nimocodeai@gmail.com',
-        subject: `Reset your NimoCode AI Password`,
-        text: `Hello,\n\nWe received a request to reset your password for NimoCode AI.\n\nClick the link below to set a new password:\n${resetLink}\n\nThis link will expire in 1 hour.\n\nIf you did not request a password reset, please ignore this email.`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 20px; background-color: #ffffff;">
-            <div style="margin-bottom: 24px; text-align: center;">
-              <div style="width: 98px; height: 98px; background-color: #09090b; border-radius: 24px; margin: 0 auto 16px auto; text-align: center; line-height: 98px; color: #ffffff; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 38px; font-weight: 900; letter-spacing: -2px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25);">
-                &lt;/&gt;
-              </div>
-              <h2 style="color: #09090b; font-size: 22px; font-weight: 800; margin: 0;">Reset Your Password</h2>
-              <p style="color: #71717a; font-size: 14px; margin-top: 6px;">Click the button below to set a new password for your account.</p>
-            </div>
+  const resetPayload = {
+    to: targetEmail,
+    subject: 'Reset your NimoCode AI Password',
+    html: resetHtml,
+    text: `Hello,\n\nReset your NimoCode AI password here:\n${resetLink}\n\nExpires in 1 hour.`
+  };
 
-            <div style="text-align: center; margin: 32px 0;">
-              <a href="${resetLink}" style="display: inline-block; background-color: #09090b; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 12px; font-weight: 700; font-size: 14px;">
-                Reset Password
-              </a>
-            </div>
+  // 1st: Brevo HTTPS (no domain required)
+  let emailSent = await sendEmailViaBrevo(resetPayload);
 
-            <p style="color: #a1a1aa; font-size: 12px; word-break: break-all; text-align: center;">
-              Or copy & paste this link into your browser:<br/>
-              <a href="${resetLink}" style="color: #f59e0b;">${resetLink}</a>
-            </p>
-          </div>
-        `,
-        headers: {
-          'X-Mailer': 'NimoCode Security Engine',
-          'X-Priority': '1'
-        }
-      });
-      emailSent = true;
-      console.log(`[Password Reset Mail] ✅ Password reset email dispatched to ${targetEmail}`);
-    } catch (err) {
-      console.error(`[Password Reset Error]:`, err.message);
+  // 2nd: Resend HTTPS fallback
+  if (!emailSent) emailSent = await sendEmailViaResend(resetPayload);
+
+  // 3rd: Nodemailer SMTP fallback
+  if (!emailSent) {
+    const transporter = createMailTransporter();
+    if (transporter) {
+      try {
+        await transporter.sendMail({
+          from: `"NimoCode AI Security" <${process.env.GMAIL_USER || 'nimocodeai@gmail.com'}>`,
+          to: targetEmail,
+          subject: 'Reset your NimoCode AI Password',
+          html: resetHtml,
+          text: resetPayload.text
+        });
+        emailSent = true;
+        console.log(`[Password Reset Mail] ✅ Email dispatched to ${targetEmail}`);
+      } catch (err) {
+        console.error(`[Password Reset Error]:`, err.message);
+      }
     }
   }
 
