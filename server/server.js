@@ -22,6 +22,12 @@ const LOCAL_URI = 'mongodb://127.0.0.1:27017/nimocode';
 
 app.use(cors());
 app.use(express.json());
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ error: 'Invalid JSON payload format.' });
+  }
+  next();
+});
 
 // Force Google Public DNS for Node.js SRV resolution on Windows
 try {

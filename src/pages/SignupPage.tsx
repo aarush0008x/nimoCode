@@ -82,7 +82,9 @@ export const SignupPage: React.FC = () => {
       });
       if (res.ok) {
         const data = await res.json();
-        setDevOtpHint(data.devOtpHint);
+        setDevOtpHint(data.devOtpHint || '123456');
+      } else {
+        setDevOtpHint('123456');
       }
     } catch {
       setDevOtpHint('123456');
