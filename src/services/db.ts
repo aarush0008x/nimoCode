@@ -1,0 +1,423 @@
+import { generateLeetCode2000Problems } from '../data/leetcodeDataset';
+import { MOCK_CONTESTS } from '../data/contests';
+import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission } from '../types';
+
+const LEETCODE_2000_PROBLEMS = generateLeetCode2000Problems();
+
+const API_BASE_URL = 'http://localhost:5000/api';
+
+const STORAGE_KEYS = {
+  PROBLEMS: 'nimocode_problems_v1',
+  CONTESTS: 'nimocode_contests_v1',
+  USERS: 'nimocode_users_v1',
+  DISCUSSIONS: 'nimocode_discussions_v1',
+  SOLUTIONS: 'nimocode_solutions_v1',
+  SUBMISSIONS: 'nimocode_submissions_v1'
+};
+
+export type DbUserRecord = LeaderboardEntry & {
+  _id?: string;
+  email?: string;
+  password?: string;
+  role: 'admin' | 'user' | 'moderator';
+  isBanned?: boolean;
+  currentXP?: number;
+  nextLevelXP?: number;
+  level?: number;
+  solvedProblemIds?: string[];
+  submissionHeatmap?: Record<string, number>;
+  solvedStats?: {
+    easy: number;
+    easyTotal: number;
+    medium: number;
+    mediumTotal: number;
+    hard: number;
+    hardTotal: number;
+  };
+};
+
+// Seed initial database if empty
+const seedDatabaseIfEmpty = () => {
+  try {
+    const existingProbs = localStorage.getItem(STORAGE_KEYS.PROBLEMS);
+    if (!existingProbs || JSON.parse(existingProbs).length < LEETCODE_2000_PROBLEMS.length || existingProbs.includes('"solvedStatus":"solved"')) {
+      const cleanProbs = LEETCODE_2000_PROBLEMS.map(p => ({ ...p, solvedStatus: 'todo' as const }));
+      localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(cleanProbs));
+    }
+  } catch {
+    const cleanProbs = LEETCODE_2000_PROBLEMS.map(p => ({ ...p, solvedStatus: 'todo' as const }));
+    localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(cleanProbs));
+  }
+
+  if (!localStorage.getItem(STORAGE_KEYS.CONTESTS)) {
+    localStorage.setItem(STORAGE_KEYS.CONTESTS, JSON.stringify(MOCK_CONTESTS));
+  }
+
+  // Clear old fake discussions
+  try {
+    const existingDisc = localStorage.getItem(STORAGE_KEYS.DISCUSSIONS);
+    if (existingDisc && existingDisc.includes('cpp_master')) {
+      localStorage.removeItem(STORAGE_KEYS.DISCUSSIONS);
+    }
+  } catch {
+    // Ignore
+  }
+
+  if (!localStorage.getItem(STORAGE_KEYS.DISCUSSIONS)) {
+    localStorage.setItem(STORAGE_KEYS.DISCUSSIONS, JSON.stringify([]));
+  }
+
+  if (!localStorage.getItem(STORAGE_KEYS.SOLUTIONS)) {
+    localStorage.setItem(STORAGE_KEYS.SOLUTIONS, JSON.stringify([]));
+  }
+
+  // Purge fake seed users from localStorage
+  try {
+    const existingUsers = localStorage.getItem(STORAGE_KEYS.USERS);
+    if (existingUsers && (existingUsers.includes('tourist') || existingUsers.includes('benq'))) {
+      localStorage.removeItem(STORAGE_KEYS.USERS);
+    }
+  } catch {}
+};
+
+seedDatabaseIfEmpty();
+
+// Database Service Interface connected to Realtime Express MongoDB Server
+export const db = {
+  // PROBLEMS
+  getProblems: (): Problem[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.PROBLEMS);
+      return data ? JSON.parse(data) : LEETCODE_2000_PROBLEMS;
+    } catch {
+      return LEETCODE_2000_PROBLEMS;
+    }
+  },
+
+  addProblem: (problemData: Omit<Problem, 'id' | 'totalSubmissions' | 'acceptanceRate' | 'solvedStatus'>): Problem => {
+    const problems = db.getProblems();
+    const newId = (problems.length + 1).toString();
+    const newNumber = problems.length > 0 ? Math.max(...problems.map(p => p.number)) + 1 : 1;
+
+    const newProblem: Problem = {
+      ...problemData,
+      id: newId,
+      number: newNumber,
+      acceptanceRate: 50.0,
+      totalSubmissions: 0,
+      solvedStatus: 'todo'
+    };
+
+    const updated = [newProblem, ...problems];
+    localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(updated));
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return newProblem;
+  },
+
+  updateProblem: (id: string, updatedFields: Partial<Problem>): Problem | null => {
+    const problems = db.getProblems();
+    const index = problems.findIndex(p => p.id === id);
+    if (index === -1) return null;
+
+    problems[index] = { ...problems[index], ...updatedFields };
+    localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(problems));
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return problems[index];
+  },
+
+  deleteProblem: (id: string): boolean => {
+    const problems = db.getProblems();
+    const filtered = problems.filter(p => p.id !== id);
+    localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(filtered));
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return true;
+  },
+
+  // CONTESTS
+  getContests: (): Contest[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.CONTESTS);
+      return data ? JSON.parse(data) : MOCK_CONTESTS;
+    } catch {
+      return MOCK_CONTESTS;
+    }
+  },
+
+  addContest: (contestData: Omit<Contest, 'id' | 'participantsCount'>): Contest => {
+    const contests = db.getContests();
+    const newId = `contest-${Date.now()}`;
+    const newContest: Contest = {
+      ...contestData,
+      id: newId,
+      participantsCount: 1
+    };
+
+    const updated = [newContest, ...contests];
+    localStorage.setItem(STORAGE_KEYS.CONTESTS, JSON.stringify(updated));
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return newContest;
+  },
+
+  updateContest: (id: string, updatedFields: Partial<Contest>): Contest | null => {
+    const contests = db.getContests();
+    const index = contests.findIndex(c => c.id === id);
+    if (index === -1) return null;
+
+    contests[index] = { ...contests[index], ...updatedFields };
+    localStorage.setItem(STORAGE_KEYS.CONTESTS, JSON.stringify(contests));
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return contests[index];
+  },
+
+  deleteContest: (id: string): boolean => {
+    const contests = db.getContests();
+    const filtered = contests.filter(c => c.id !== id);
+    localStorage.setItem(STORAGE_KEYS.CONTESTS, JSON.stringify(filtered));
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return true;
+  },
+
+  // USERS & REAL MONGODB LEADERBOARD
+  getUsers: (): DbUserRecord[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.USERS);
+      const rawUsers: DbUserRecord[] = data ? JSON.parse(data) : [];
+
+      const sorted = [...rawUsers].sort((a, b) => b.rating - a.rating);
+      return sorted.map((user, idx) => ({
+        ...user,
+        rank: idx + 1
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  addUser: (userData: { name: string; username: string; email: string; password?: string }): DbUserRecord => {
+    const users = db.getUsers();
+
+    const targetUser = userData.username.trim().toLowerCase();
+    const targetEmail = userData.email.trim().toLowerCase();
+
+    const existing = users.find(u =>
+      (u.username || '').toLowerCase() === targetUser || (u.email || '').toLowerCase() === targetEmail
+    );
+    if (existing) {
+      if ((existing.username || '').toLowerCase() === targetUser) {
+        throw new Error(`Username "@${userData.username}" is already taken. Please choose another username.`);
+      }
+      throw new Error(`An account with email "${userData.email}" already exists.`);
+    }
+
+    const newUser: DbUserRecord = {
+      _id: `507f1f77${Date.now().toString(16).padStart(16, '0')}`,
+      rank: users.length + 1,
+      name: userData.name,
+      username: userData.username.toLowerCase(),
+      email: userData.email.toLowerCase(),
+      password: userData.password || 'password123',
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(userData.username)}`,
+      rating: 1200,
+      solvedCount: 0,
+      contestWins: 0,
+      streak: 1,
+      trend: 'same',
+      badge: 'Knight',
+      country: 'USA',
+      role: 'user',
+      level: 1,
+      currentXP: 0,
+      nextLevelXP: 1000,
+      solvedProblemIds: [],
+      submissionHeatmap: {},
+      solvedStats: {
+        easy: 0, easyTotal: 820, medium: 0, mediumTotal: 1450, hard: 0, hardTotal: 680
+      }
+    };
+
+    const updated = [...users, newUser];
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
+
+    // Async sync to MongoDB Backend API
+    fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userData)
+    }).catch(() => {});
+
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return newUser;
+  },
+
+  authenticateUser: (loginId: string, passwordInput: string): DbUserRecord | null => {
+    const users = db.getUsers();
+    const target = loginId.trim().toLowerCase();
+    const user = users.find(u => u.username === target || u.email === target);
+
+    if (user && (!user.password || user.password === passwordInput)) {
+      return user;
+    }
+    return null;
+  },
+
+  updateUser: (username: string, updates: Partial<DbUserRecord>): DbUserRecord | null => {
+    const users = db.getUsers();
+    const index = users.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
+    if (index === -1) return null;
+
+    users[index] = { ...users[index], ...updates };
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+
+    // Sync to MongoDB Express API
+    fetch(`${API_BASE_URL}/users/${username}/progress`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    }).catch(() => {});
+
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return users[index];
+  },
+
+  updateUserRole: (username: string, role: 'admin' | 'user' | 'moderator') => {
+    db.updateUser(username, { role });
+    fetch(`${API_BASE_URL}/users/${username}/role`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role })
+    }).catch(() => {});
+  },
+
+  toggleUserBan: (username: string) => {
+    const users = db.getUsers();
+    const user = users.find(u => u.username === username);
+    if (user) {
+      db.updateUser(username, { isBanned: !user.isBanned });
+    }
+  },
+
+  deleteUser: (username: string): boolean => {
+    const users = db.getUsers();
+    const filtered = users.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(filtered));
+
+    // Sync to MongoDB Backend API
+    fetch(`${API_BASE_URL}/users/${username}`, { method: 'DELETE' }).catch(() => {});
+
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return true;
+  },
+
+  // SUBMISSIONS
+  getSubmissions: (): Submission[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  addSubmission: (submission: Submission) => {
+    const submissions = db.getSubmissions();
+    const updated = [submission, ...submissions];
+    localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(updated));
+
+    // Sync to MongoDB Express API
+    fetch(`${API_BASE_URL}/submissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(submission)
+    }).catch(() => {});
+
+    window.dispatchEvent(new Event('nimocode_db_update'));
+  },
+
+  // DISCUSSIONS & SOLUTIONS
+  getDiscussions: (): DiscussionPost[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.DISCUSSIONS);
+      const parsed = data ? JSON.parse(data) : [];
+      return parsed.filter((d: DiscussionPost) => d.author !== 'cpp_master' && d.author !== 'coder_pro' && d.author !== 'sarah_tech');
+    } catch {
+      return [];
+    }
+  },
+
+  addDiscussion: (post: Omit<DiscussionPost, 'id' | 'upvotes' | 'repliesCount' | 'createdAt'>): DiscussionPost => {
+    const discussions = db.getDiscussions();
+    const newPost: DiscussionPost = {
+      ...post,
+      id: `disc-${Date.now()}`,
+      upvotes: 1,
+      repliesCount: 0,
+      createdAt: 'Just now'
+    };
+    const updated = [newPost, ...discussions];
+    localStorage.setItem(STORAGE_KEYS.DISCUSSIONS, JSON.stringify(updated));
+
+    // Sync to MongoDB Server
+    fetch(`${API_BASE_URL}/discussions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(post)
+    }).catch(() => {});
+
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return newPost;
+  },
+
+  deleteDiscussion: (id: string) => {
+    const discussions = db.getDiscussions();
+    const filtered = discussions.filter(d => d.id !== id);
+    localStorage.setItem(STORAGE_KEYS.DISCUSSIONS, JSON.stringify(filtered));
+    window.dispatchEvent(new Event('nimocode_db_update'));
+  },
+
+  upvoteDiscussion: (id: string) => {
+    const discussions = db.getDiscussions();
+    const index = discussions.findIndex(d => d.id === id);
+    if (index !== -1) {
+      discussions[index].upvotes += 1;
+      localStorage.setItem(STORAGE_KEYS.DISCUSSIONS, JSON.stringify(discussions));
+
+      fetch(`${API_BASE_URL}/discussions/${id}/upvote`, { method: 'PUT' }).catch(() => {});
+
+      window.dispatchEvent(new Event('nimocode_db_update'));
+    }
+  },
+
+  getSolutions: (): SolutionPost[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SOLUTIONS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  addSolution: (post: Omit<SolutionPost, 'id' | 'upvotes' | 'views' | 'createdAt'>): SolutionPost => {
+    const solutions = db.getSolutions();
+    const newSolution: SolutionPost = {
+      ...post,
+      id: `sol-${Date.now()}`,
+      upvotes: 1,
+      views: 1,
+      createdAt: 'Just now'
+    };
+    const updated = [newSolution, ...solutions];
+    localStorage.setItem(STORAGE_KEYS.SOLUTIONS, JSON.stringify(updated));
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return newSolution;
+  },
+
+  upvoteSolution: (id: string) => {
+    const solutions = db.getSolutions();
+    const index = solutions.findIndex(s => s.id === id);
+    if (index !== -1) {
+      solutions[index].upvotes += 1;
+      localStorage.setItem(STORAGE_KEYS.SOLUTIONS, JSON.stringify(solutions));
+      window.dispatchEvent(new Event('nimocode_db_update'));
+    }
+  }
+};

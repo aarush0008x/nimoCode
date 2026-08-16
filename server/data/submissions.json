@@ -1,0 +1,24 @@
+[
+  {
+    "_id": "sub-1786856563619-211",
+    "id": "sub-1786856563617",
+    "problemId": "2",
+    "language": "cpp",
+    "code": "class Solution {\npublic:\n    int solve(vector<int>& nums) {\n        // Solution for LeetCode #2\n        return 0;\n    }\n};",
+    "status": "Accepted",
+    "runtimeMs": 44,
+    "memoryMb": 12.4,
+    "timestamp": "2026-08-16T05:02:43.619Z"
+  },
+  {
+    "_id": "sub-1786856542962-524",
+    "id": "sub-1786856542942",
+    "problemId": "1",
+    "language": "cpp",
+    "code": "class Solution {\npublic:\n    int solve(vector<int>& nums) {\n        // Solution for LeetCode #1\n        return 0;\n    }\n};",
+    "status": "Accepted",
+    "runtimeMs": 45,
+    "memoryMb": 12.6,
+    "timestamp": "2026-08-16T05:02:22.962Z"
+  }
+]

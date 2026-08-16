@@ -1,0 +1,16 @@
+{
+  "short_name": "NimoCode AI",
+  "name": "NimoCode — AI-Powered Competitive Programming Ecosystem",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "98x98 192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "display": "standalone",
+  "orientation": "portrait"
+}

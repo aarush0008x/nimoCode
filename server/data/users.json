@@ -1,0 +1,36 @@
+[
+  {
+    "_id": "mongo-1786861837970",
+    "rank": 1,
+    "name": "Aarush",
+    "username": "aarush",
+    "email": "aarushdevworld@gmail.com",
+    "password": "Aarush@890",
+    "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=aarush",
+    "rating": 1200,
+    "solvedCount": 0,
+    "level": 1,
+    "currentXP": 0,
+    "nextLevelXP": 1000,
+    "solvedProblemIds": [],
+    "role": "admin",
+    "createdAt": "2026-08-16T06:30:37.970Z"
+  },
+  {
+    "_id": "mongo-1786863061245",
+    "rank": 2,
+    "name": "BodhAi",
+    "username": "bodhai",
+    "email": "adminbodhai@gmail.com",
+    "password": "Aarush@890",
+    "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=bodhai",
+    "rating": 1200,
+    "solvedCount": 0,
+    "level": 1,
+    "currentXP": 0,
+    "nextLevelXP": 1000,
+    "solvedProblemIds": [],
+    "role": "admin",
+    "createdAt": "2026-08-16T06:51:01.245Z"
+  }
+]
