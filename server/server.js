@@ -240,22 +240,26 @@ const customIPv4Lookup = (hostname, options, callback) => {
 
 // Resend HTTPS Email API (works on all cloud hosts including Render free tier)
 const sendEmailViaResend = async ({ to, subject, html, text }) => {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return false;
+  const apiKey = (process.env.RESEND_API_KEY || '').trim().replace(/['"]+/g, '');
+  if (!apiKey || apiKey.length < 10) {
+    console.log('[Resend] No valid RESEND_API_KEY set, skipping.');
+    return false;
+  }
   try {
     const resend = new Resend(apiKey);
-    const { error } = await resend.emails.send({
-      from: 'NimoCode AI <noreply@nimocode.dev>',
+    const fromAddress = process.env.RESEND_FROM || 'NimoCode AI <onboarding@resend.dev>';
+    const { data, error } = await resend.emails.send({
+      from: fromAddress,
       to,
       subject,
       html,
       text
     });
     if (error) {
-      console.error('[Resend Error]', error);
+      console.error('[Resend Error]', JSON.stringify(error));
       return false;
     }
-    console.log(`[Resend] ✅ Email dispatched via HTTPS to ${to}`);
+    console.log(`[Resend] ✅ Email dispatched via HTTPS to ${to} | id: ${data?.id}`);
     return true;
   } catch (err) {
     console.error('[Resend Error]', err.message);
