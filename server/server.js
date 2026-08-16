@@ -238,67 +238,49 @@ const customIPv4Lookup = (hostname, options, callback) => {
   });
 };
 
-// Brevo (Sendinblue) HTTPS Transactional Email API
-// Works without domain ownership — just verify nimocodeai@gmail.com as a sender in Brevo dashboard
+// Brevo SMTP Relay — works without a domain, just needs verified sender
+// Uses port 587 (STARTTLS) — different from Gmail SMTP so not blocked by Render
 const sendEmailViaBrevo = async ({ to, subject, html, text }) => {
-  const apiKey = (process.env.BREVO_API_KEY || '').trim().replace(/['"]+/g, '');
-  if (!apiKey || apiKey.length < 10) {
-    console.log('[Brevo] No valid BREVO_API_KEY set, skipping.');
+  const smtpLogin = (process.env.BREVO_SMTP_LOGIN || '').trim();
+  const smtpKey   = (process.env.BREVO_SMTP_KEY   || '').trim().replace(/['"+]+/g, '');
+
+  if (!smtpLogin || !smtpKey || smtpKey.length < 8) {
+    console.log('[Brevo SMTP] BREVO_SMTP_LOGIN or BREVO_SMTP_KEY not set, skipping.');
     return false;
   }
 
   try {
-    const payload = {
-      sender: { name: 'NimoCode AI', email: process.env.GMAIL_USER || 'nimocodeai@gmail.com' },
-      to: [{ email: to }],
-      subject,
-      htmlContent: html,
-      textContent: text
-    };
-
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'api-key': apiKey
-      },
-      body: JSON.stringify(payload)
+    const transporter = nodemailer.createTransport({
+      host: 'smtp-relay.brevo.com',
+      port: 587,
+      secure: false,        // STARTTLS on port 587
+      lookup: customIPv4Lookup,
+      auth: { user: smtpLogin, pass: smtpKey },
+      connectionTimeout: 15000,
+      greetingTimeout: 10000
     });
 
-    if (!response.ok) {
-      const errBody = await response.text();
-      console.error(`[Brevo Error] HTTP ${response.status}: ${errBody}`);
-      return false;
-    }
+    await transporter.sendMail({
+      from: `"NimoCode AI" <${process.env.GMAIL_USER || 'nimocodeai@gmail.com'}>`,
+      to,
+      subject,
+      html,
+      text
+    });
 
-    const result = await response.json();
-    console.log(`[Brevo] ✅ Email sent to ${to} | messageId: ${result.messageId}`);
+    console.log(`[Brevo SMTP] ✅ Email sent to ${to}`);
     return true;
   } catch (err) {
-    console.error('[Brevo Error]', err.message);
+    console.error('[Brevo SMTP Error]', err.message);
     return false;
   }
 };
+
 
 // Resend HTTPS Email API (fallback — requires verified domain)
-const sendEmailViaResend = async ({ to, subject, html, text }) => {
-  const apiKey = (process.env.RESEND_API_KEY || '').trim().replace(/['"]+/g, '');
-  if (!apiKey || apiKey.length < 10) return false;
-  try {
-    const resend = new Resend(apiKey);
-    const fromAddress = process.env.RESEND_FROM || 'NimoCode AI <onboarding@resend.dev>';
-    const { data, error } = await resend.emails.send({ from: fromAddress, to, subject, html, text });
-    if (error) {
-      console.error('[Resend Error]', JSON.stringify(error));
-      return false;
-    }
-    console.log(`[Resend] ✅ Email dispatched to ${to} | id: ${data?.id}`);
-    return true;
-  } catch (err) {
-    console.error('[Resend Error]', err.message);
-    return false;
-  }
-};
+// Resend disabled — requires a verified domain (user doesn't own one)
+// Keep the function stub so references don't break, but it always returns false
+const sendEmailViaResend = async () => false;
 
 // Nodemailer Gmail Transporter (fallback)
 const createMailTransporter = () => {
