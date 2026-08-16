@@ -53,7 +53,12 @@ let connectedEngine = 'Native MongoDB Driver';
 const initMongoDriver = async () => {
   const tryConnect = async (uri, name) => {
     try {
-      const client = new MongoClient(uri, { serverSelectionTimeoutMS: 8000 });
+      const client = new MongoClient(uri, {
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000,
+        tls: true,
+        tlsAllowInvalidCertificates: true
+      });
       await client.connect();
       mongoDb = client.db('nimocode');
       isConnected = true;
@@ -222,8 +227,12 @@ const resetTokenStore = new Map();
 
 // Nodemailer Gmail Transporter
 const createMailTransporter = () => {
-  const user = (process.env.GMAIL_USER || 'nimocodeai@gmail.com').trim();
-  const pass = (process.env.GMAIL_APP_PASSWORD || 'wlsdzgavbcyffptq').replace(/\s+/g, '');
+  const rawUser = process.env.GMAIL_USER || 'nimocodeai@gmail.com';
+  const rawPass = process.env.GMAIL_APP_PASSWORD || 'wlsdzgavbcyffptq';
+
+  const user = rawUser.trim().replace(/['"]+/g, '');
+  const pass = rawPass.trim().replace(/['"]+/g, '').replace(/\s+/g, '');
+
   if (!user || !pass) return null;
 
   return nodemailer.createTransport({
