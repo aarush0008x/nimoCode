@@ -75,7 +75,12 @@ const initMongoDriver = async () => {
 
       return true;
     } catch (err) {
-      console.log(`⚠️ MongoDB Driver connection attempt to ${name} failed: ${err.message}`);
+      if (err.message.includes('SSL alert') || err.message.includes('tlsv1') || err.message.includes('alert number 80')) {
+        console.log(`⚠️ MONGODB ATLAS NETWORK ACCESS NOTICE: Connection rejected by Atlas Firewall.`);
+        console.log(`👉 SOLUTION: Go to https://cloud.mongodb.com -> Security -> Network Access -> Add IP Address -> Select "ALLOW ACCESS FROM ANYWHERE" (0.0.0.0/0).`);
+      } else {
+        console.log(`⚠️ MongoDB Driver connection attempt to ${name} failed: ${err.message}`);
+      }
       return false;
     }
   };
