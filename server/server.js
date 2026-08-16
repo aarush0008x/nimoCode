@@ -238,44 +238,48 @@ const customIPv4Lookup = (hostname, options, callback) => {
   });
 };
 
-// Brevo SMTP Relay — works without a domain, just needs verified sender
-// Uses port 587 (STARTTLS) — different from Gmail SMTP so not blocked by Render
+// Brevo HTTP API — works on Render free tier (HTTPS port 443, NOT SMTP)
+// Render blocks ALL outbound SMTP ports (25, 465, 587) on free tier
 const sendEmailViaBrevo = async ({ to, subject, html, text }) => {
-  const smtpLogin = (process.env.BREVO_SMTP_LOGIN || '').trim();
-  const smtpKey   = (process.env.BREVO_SMTP_KEY   || '').trim().replace(/['"+]+/g, '');
-
-  if (!smtpLogin || !smtpKey || smtpKey.length < 8) {
-    console.log('[Brevo SMTP] BREVO_SMTP_LOGIN or BREVO_SMTP_KEY not set, skipping.');
+  const apiKey = (process.env.BREVO_API_KEY || '').trim().replace(/['"]+/g, '');
+  if (!apiKey || apiKey.length < 20) {
+    console.log('[Brevo API] BREVO_API_KEY not set or invalid, skipping.');
     return false;
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: 'smtp-relay.brevo.com',
-      port: 587,
-      secure: false,        // STARTTLS on port 587
-      lookup: customIPv4Lookup,
-      auth: { user: smtpLogin, pass: smtpKey },
-      connectionTimeout: 15000,
-      greetingTimeout: 10000
-    });
-
-    await transporter.sendMail({
-      from: `"NimoCode AI" <${process.env.GMAIL_USER || 'nimocodeai@gmail.com'}>`,
-      to,
+    const senderEmail = (process.env.GMAIL_USER || 'nimocodeai@gmail.com').trim();
+    const payload = {
+      sender:      { name: 'NimoCode AI', email: senderEmail },
+      to:          [{ email: to }],
       subject,
-      html,
-      text
+      htmlContent: html,
+      textContent: text
+    };
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key':       apiKey
+      },
+      body: JSON.stringify(payload)
     });
 
-    console.log(`[Brevo SMTP] ✅ Email sent to ${to}`);
+    const body = await response.text();
+    if (!response.ok) {
+      console.error(`[Brevo API Error] HTTP ${response.status}: ${body}`);
+      return false;
+    }
+
+    const result = JSON.parse(body);
+    console.log(`[Brevo API] ✅ Email sent to ${to} | messageId: ${result.messageId}`);
     return true;
   } catch (err) {
-    console.error('[Brevo SMTP Error]', err.message);
+    console.error('[Brevo API Error]', err.message);
     return false;
   }
 };
-
 
 // Resend HTTPS Email API (fallback — requires verified domain)
 // Resend disabled — requires a verified domain (user doesn't own one)
