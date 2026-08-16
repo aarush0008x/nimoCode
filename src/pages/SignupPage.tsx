@@ -17,6 +17,8 @@ export const SignupPage: React.FC = () => {
   const [usernameTaken, setUsernameTaken] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [devOtpHint, setDevOtpHint] = useState<string | undefined>(undefined);
+  const [otpCode, setOtpCode] = useState<string | undefined>(undefined);
+  const [emailSent, setEmailSent] = useState<boolean | undefined>(undefined);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
 
   const { signup } = useAuth();
@@ -82,9 +84,11 @@ export const SignupPage: React.FC = () => {
       });
       if (res.ok) {
         const data = await res.json();
-        setDevOtpHint(data.devOtpHint || '123456');
+        setEmailSent(data.emailSent);
+        setOtpCode(data.emailSent ? undefined : data.otpCode); // Show on screen only if email failed
+        setDevOtpHint(data.devOtpHint);
       } else {
-        setDevOtpHint('123456');
+        setEmailSent(false);
       }
     } catch {
       setDevOtpHint('123456');
@@ -199,6 +203,8 @@ export const SignupPage: React.FC = () => {
         <EmailVerificationModal
           email={email}
           devOtpHint={devOtpHint}
+          otpCode={otpCode}
+          emailSent={emailSent}
           onVerified={handleVerifiedComplete}
           onCancel={() => setShowVerifyModal(false)}
         />

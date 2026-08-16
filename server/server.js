@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import dns from 'dns';
 import vm from 'vm';
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -237,13 +238,38 @@ const customIPv4Lookup = (hostname, options, callback) => {
   });
 };
 
-// Nodemailer Gmail Transporter
+// Resend HTTPS Email API (works on all cloud hosts including Render free tier)
+const sendEmailViaResend = async ({ to, subject, html, text }) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return false;
+  try {
+    const resend = new Resend(apiKey);
+    const { error } = await resend.emails.send({
+      from: 'NimoCode AI <noreply@nimocode.dev>',
+      to,
+      subject,
+      html,
+      text
+    });
+    if (error) {
+      console.error('[Resend Error]', error);
+      return false;
+    }
+    console.log(`[Resend] ✅ Email dispatched via HTTPS to ${to}`);
+    return true;
+  } catch (err) {
+    console.error('[Resend Error]', err.message);
+    return false;
+  }
+};
+
+// Nodemailer Gmail Transporter (fallback)
 const createMailTransporter = () => {
   const rawUser = process.env.GMAIL_USER || 'nimocodeai@gmail.com';
   const rawPass = process.env.GMAIL_APP_PASSWORD || 'wlsdzgavbcyffptq';
 
-  const user = rawUser.trim().replace(/['"]+/g, '');
-  const pass = rawPass.trim().replace(/['"]+/g, '').replace(/\s+/g, '');
+  const user = rawUser.trim().replace(/['"+]+/g, '');
+  const pass = rawPass.trim().replace(/['"+]+/g, '').replace(/\s+/g, '');
 
   if (!user || !pass) return null;
 
@@ -253,9 +279,7 @@ const createMailTransporter = () => {
     secure: true,
     lookup: customIPv4Lookup,
     auth: { user, pass },
-    tls: {
-      servername: 'smtp.gmail.com'
-    },
+    tls: { servername: 'smtp.gmail.com' },
     connectionTimeout: 15000,
     greetingTimeout: 15000
   });
@@ -265,62 +289,60 @@ app.post('/api/auth/send-otp', async (req, res) => {
   const email = (req.body?.email || '').trim().toLowerCase();
   if (!email) return res.status(400).json({ error: 'Valid email address is required.' });
 
-  // Generate 6-digit Google Verification Code
+  // Generate 6-digit verification code
   const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
   otpStore.set(email, { otpCode, expiresAt: Date.now() + 10 * 60 * 1000 });
+  console.log(`[OTP Generated] Code for ${email}: ${otpCode}`);
 
-  console.log(`[Google Mail Verification] 📩 Verification OTP Code for ${email}: ${otpCode}`);
+  const emailHtml = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 20px; background-color: #ffffff;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <div style="width:98px;height:98px;background:#09090b;border-radius:24px;margin:0 auto 16px;text-align:center;line-height:98px;color:#fff;font-size:38px;font-weight:900;">&lt;/&gt;</div>
+        <h2 style="color:#09090b;font-size:22px;font-weight:800;margin:0;">Verify Your NimoCode Account</h2>
+        <p style="color:#71717a;font-size:14px;margin-top:6px;">Use the verification code below to complete registration.</p>
+      </div>
+      <div style="background:#fafafa;border:1px solid #f4f4f5;border-radius:16px;padding:24px;text-align:center;margin:24px 0;">
+        <div style="font-family:monospace;font-size:36px;font-weight:800;letter-spacing:8px;color:#f59e0b;">${otpCode}</div>
+        <div style="color:#a1a1aa;font-size:11px;margin-top:8px;">VALID FOR 10 MINUTES</div>
+      </div>
+      <p style="color:#71717a;font-size:12px;text-align:center;">If you didn't request this, you can safely ignore this email.</p>
+    </div>
+  `;
 
-  const transporter = createMailTransporter();
-  let emailSent = false;
+  // Try Resend HTTPS API first (works on Render free tier)
+  let emailSent = await sendEmailViaResend({
+    to: email,
+    subject: `NimoCode AI — Your Verification Code: ${otpCode}`,
+    html: emailHtml,
+    text: `Your NimoCode AI verification code is: ${otpCode}\n\nExpires in 10 minutes.`
+  });
 
-  if (transporter) {
-    try {
-      await transporter.sendMail({
-        from: `"NimoCode AI Support" <${process.env.GMAIL_USER || 'nimocodeai@gmail.com'}>`,
-        to: email,
-        replyTo: process.env.GMAIL_USER || 'nimocodeai@gmail.com',
-        subject: `NimoCode AI Account Verification Code: ${otpCode}`,
-        text: `Your NimoCode AI account verification code is: ${otpCode}\n\nThis code expires in 10 minutes. If you did not request this email, please ignore it.`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 20px; background-color: #ffffff;">
-            <div style="margin-bottom: 24px; text-align: center;">
-              <div style="width: 98px; height: 98px; background-color: #09090b; border-radius: 24px; margin: 0 auto 16px auto; text-align: center; line-height: 98px; color: #ffffff; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 38px; font-weight: 900; letter-spacing: -2px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25);">
-                &lt;/&gt;
-              </div>
-              <h2 style="color: #09090b; font-size: 22px; font-weight: 800; margin: 0;">Verify Your NimoCode Account</h2>
-              <p style="color: #71717a; font-size: 14px; margin-top: 6px;">Use the verification code below to complete registration.</p>
-            </div>
-
-            <div style="background-color: #fafafa; border: 1px solid #f4f4f5; border-radius: 16px; padding: 24px; text-align: center; margin: 24px 0;">
-              <div style="font-family: monospace; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #f59e0b;">
-                ${otpCode}
-              </div>
-              <div style="color: #a1a1aa; font-size: 11px; font-family: monospace; margin-top: 8px;">VALID FOR 10 MINUTES</div>
-            </div>
-
-            <p style="color: #71717a; font-size: 12px; line-height: 1.5; margin: 0; text-align: center;">
-              If you didn't initiate this request, you can safely ignore this email.
-            </p>
-          </div>
-        `,
-        headers: {
-          'X-Mailer': 'NimoCode AI Transactional Engine 2.0',
-          'X-Priority': '1'
-        }
-      });
-      emailSent = true;
-      console.log(`[Google Mail] ✅ Real verification email dispatched to ${email}`);
-    } catch (err) {
-      console.error(`[Google Mail Error] Failed to send email:`, err.message);
+  // Fallback: Nodemailer SMTP
+  if (!emailSent) {
+    const transporter = createMailTransporter();
+    if (transporter) {
+      try {
+        await transporter.sendMail({
+          from: `"NimoCode AI" <${process.env.GMAIL_USER || 'nimocodeai@gmail.com'}>`,
+          to: email,
+          subject: `NimoCode AI — Your Verification Code: ${otpCode}`,
+          html: emailHtml,
+          text: `Your NimoCode AI verification code is: ${otpCode}\n\nExpires in 10 minutes.`
+        });
+        emailSent = true;
+        console.log(`[SMTP] ✅ Verification email sent to ${email}`);
+      } catch (err) {
+        console.error(`[SMTP Error]`, err.message);
+      }
     }
   }
 
+  // Always return success — otpCode is included so frontend can show it as fallback
   return res.json({
     success: true,
     emailSent,
-    message: emailSent ? `Verification email sent to ${email}` : `OTP code generated for ${email}`,
-    devOtpHint: otpCode
+    message: emailSent ? `Verification email sent to ${email}` : `Could not send email — use the code shown below.`,
+    otpCode: emailSent ? undefined : otpCode  // Only expose OTP on screen if email failed
   });
 });
 

@@ -5,6 +5,8 @@ import { getApiUrl } from '../../utils/apiConfig';
 interface EmailVerificationModalProps {
   email: string;
   devOtpHint?: string;
+  otpCode?: string;       // OTP returned by server when email fails
+  emailSent?: boolean;    // Whether email was actually delivered
   onVerified: () => void;
   onCancel: () => void;
 }
@@ -12,6 +14,8 @@ interface EmailVerificationModalProps {
 export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
   email,
   devOtpHint,
+  otpCode,
+  emailSent,
   onVerified,
   onCancel
 }) => {
@@ -86,9 +90,21 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
             Verify Your Email Address
           </h2>
           <p className="text-xs text-neutral-500 font-mono">
-            Enter the 6-digit Google verification code sent to <strong className="text-neutral-950 dark:text-white">{email}</strong>
+            {emailSent === false
+              ? <>Email delivery failed — use the code below to verify:</>
+              : <>Enter the 6-digit code sent to <strong className="text-neutral-950 dark:text-white">{email}</strong></>
+            }
           </p>
         </div>
+
+        {/* Show OTP on screen if email could not be delivered */}
+        {otpCode && emailSent === false && (
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center">
+            <p className="text-[10px] font-mono text-amber-600 dark:text-amber-400 mb-2 uppercase tracking-widest">Your Verification Code</p>
+            <div className="text-3xl font-extrabold font-mono tracking-[0.3em] text-amber-500">{otpCode}</div>
+            <p className="text-[10px] text-neutral-400 mt-2 font-mono">Valid for 10 minutes</p>
+          </div>
+        )}
 
         {errorMsg && (
           <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs font-semibold flex items-center justify-center gap-2">
