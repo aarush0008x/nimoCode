@@ -97,6 +97,13 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
           </div>
         )}
 
+        {devOtpHint && (
+          <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-mono font-bold flex items-center justify-center gap-2">
+            <span>Verification Code:</span>
+            <span className="bg-amber-500 text-neutral-950 px-2 py-0.5 rounded-md text-sm font-extrabold tracking-widest">{devOtpHint}</span>
+          </div>
+        )}
+
         <form onSubmit={handleVerify} className="space-y-4">
           <input
             type="text"
