@@ -227,6 +227,16 @@ app.post('/api/auth/register', async (req, res) => {
 const otpStore = new Map();
 const resetTokenStore = new Map();
 
+// Custom IPv4 DNS Lookup Engine to bypass IPv6 ENETUNREACH on Render Linux
+const customIPv4Lookup = (hostname, options, callback) => {
+  dns.resolve4(hostname, (err, addresses) => {
+    if (err || !addresses || addresses.length === 0) {
+      return dns.lookup(hostname, { family: 4 }, callback);
+    }
+    callback(null, addresses[0], 4);
+  });
+};
+
 // Nodemailer Gmail Transporter
 const createMailTransporter = () => {
   const rawUser = process.env.GMAIL_USER || 'nimocodeai@gmail.com';
@@ -241,10 +251,13 @@ const createMailTransporter = () => {
     host: 'smtp.gmail.com',
     port: 465,
     secure: true,
-    family: 4, // Force IPv4 to fix ENETUNREACH on Render Linux containers
+    lookup: customIPv4Lookup,
     auth: { user, pass },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000
+    tls: {
+      servername: 'smtp.gmail.com'
+    },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000
   });
 };
 
