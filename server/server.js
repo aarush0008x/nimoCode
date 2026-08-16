@@ -238,8 +238,13 @@ const createMailTransporter = () => {
   if (!user || !pass) return null;
 
   return nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user, pass }
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    family: 4, // Force IPv4 to fix ENETUNREACH on Render Linux containers
+    auth: { user, pass },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000
   });
 };
 
