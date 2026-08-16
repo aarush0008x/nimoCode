@@ -54,10 +54,7 @@ const initMongoDriver = async () => {
   const tryConnect = async (uri, name) => {
     try {
       const client = new MongoClient(uri, {
-        serverSelectionTimeoutMS: 10000,
-        connectTimeoutMS: 10000,
-        tls: true,
-        tlsAllowInvalidCertificates: true
+        serverSelectionTimeoutMS: 10000
       });
       await client.connect();
       mongoDb = client.db('nimocode');
@@ -78,19 +75,19 @@ const initMongoDriver = async () => {
 
       return true;
     } catch (err) {
-      if (err.message.includes('SSL alert') || err.message.includes('tlsv1') || err.message.includes('bad auth')) {
-        console.log(`⚠️ MongoDB Atlas IP/Auth Notice for ${name}: ${err.message}`);
-      } else {
-        console.log(`⚠️ Native Driver connection attempt to ${name} failed: ${err.message}`);
-      }
+      console.log(`⚠️ MongoDB Driver connection attempt to ${name} failed: ${err.message}`);
       return false;
     }
   };
 
-  if (await tryConnect(USER_URI, 'Cloud Database')) return;
-  if (await tryConnect(LOCAL_URI, 'Localhost 127.0.0.1')) return;
+  if (await tryConnect(USER_URI, 'MongoDB Atlas Cloud Database')) return;
 
-  console.log('⏳ Retrying Native Driver connection in 5 seconds...');
+  // Only attempt localhost fallback when running locally
+  if (process.env.NODE_ENV !== 'production') {
+    if (await tryConnect(LOCAL_URI, 'Localhost 127.0.0.1')) return;
+  }
+
+  console.log('⏳ Retrying MongoDB Atlas Cloud connection in 5 seconds...');
   setTimeout(initMongoDriver, 5000);
 };
 
