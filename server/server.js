@@ -227,16 +227,8 @@ const createMailTransporter = () => {
   if (!user || !pass) return null;
 
   return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    auth: { user, pass },
-    tls: {
-      rejectUnauthorized: false
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000
+    service: 'gmail',
+    auth: { user, pass }
   });
 };
 
