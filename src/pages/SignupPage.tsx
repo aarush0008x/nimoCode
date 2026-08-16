@@ -26,7 +26,8 @@ export const SignupPage: React.FC = () => {
 
     if (clean.length >= 3) {
       try {
-        const res = await fetch('http://localhost:5000/api/auth/check-username', {
+        const apiBase = import.meta.env.VITE_API_URL || '/api';
+        const res = await fetch(`${apiBase}/auth/check-username`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: clean })
@@ -65,7 +66,8 @@ export const SignupPage: React.FC = () => {
 
     // Trigger Google Email Verification
     try {
-      const res = await fetch('http://localhost:5000/api/auth/send-otp', {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const res = await fetch(`${apiBase}/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })

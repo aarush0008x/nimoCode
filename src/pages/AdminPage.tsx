@@ -74,7 +74,8 @@ export const AdminPage: React.FC = () => {
     setBroadcastResult(null);
 
     try {
-      const res = await fetch('http://localhost:5000/api/admin/broadcast-email', {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const res = await fetch(`${apiBase}/admin/broadcast-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

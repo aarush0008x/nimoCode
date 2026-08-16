@@ -17,7 +17,8 @@ export const runCodeExecution = async ({
 
   try {
     // 1. Call Backend Multilingual Interpreter Engine
-    const res = await fetch('http://localhost:5000/api/execute', {
+    const apiBase = import.meta.env.VITE_API_URL || '/api';
+    const res = await fetch(`${apiBase}/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ language, code, problemId: problem.id, isSubmission })

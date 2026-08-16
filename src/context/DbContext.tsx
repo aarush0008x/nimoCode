@@ -49,7 +49,8 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   useEffect(() => {
     const fetchLiveUsers = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/users');
+        const apiBase = import.meta.env.VITE_API_URL || '/api';
+        const res = await fetch(`${apiBase}/users`);
         if (res.ok) {
           const apiUsers = await res.json();
           if (Array.isArray(apiUsers) && apiUsers.length > 0) {

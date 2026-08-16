@@ -91,7 +91,8 @@ export const MockInterviewPage: React.FC = () => {
         content: m.text
       }));
 
-      const res = await fetch('http://localhost:5000/api/interview/chat', {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const res = await fetch(`${apiBase}/interview/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
