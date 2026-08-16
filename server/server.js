@@ -873,6 +873,10 @@ app.post('/api/interview/chat', async (req, res) => {
 });
 
 // START SERVER
-app.listen(PORT, () => {
-  console.log(`🚀 Native Multilingual Interpreter API Server listening on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Native Multilingual Interpreter API Server listening on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
