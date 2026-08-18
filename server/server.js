@@ -623,24 +623,46 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/admin-login', async (req, res) => {
   const { loginId, password } = req.body;
-  const target = (loginId || '').trim().toLowerCase();
+  const target = (loginId || '').trim();
+  const targetLower = target.toLowerCase();
 
   if (isConnected && mongoDb) {
     try {
       const usersCol = mongoDb.collection('users');
+
+      // Case-insensitive username OR email search
       let user = await usersCol.findOne({
-        $or: [{ username: target }, { email: target }]
+        $or: [
+          { username: { $regex: `^${target}$`, $options: 'i' } },
+          { email:    { $regex: `^${target}$`, $options: 'i' } }
+        ]
       });
 
-      if (user && user.password === password) {
-        if (user.role !== 'admin' && (target === 'aarush' || target === 'admin' || user.email.includes('admin'))) {
+      // Password check: plaintext direct match (DB stores plaintext)
+      const passwordMatch = user && (
+        user.password === password ||
+        user.password === password.trim()
+      );
+
+      if (user && passwordMatch) {
+        // Auto-promote to admin if username is 'admin' or 'aarush'
+        if (user.role !== 'admin' && (
+          targetLower === 'aarush' || targetLower === 'admin' ||
+          (user.email && user.email.toLowerCase().includes('admin'))
+        )) {
           await usersCol.updateOne({ _id: user._id }, { $set: { role: 'admin' } });
           user.role = 'admin';
         }
 
         if (user.role === 'admin') {
+          console.log(`[Admin Login] ✅ Admin authenticated: ${user.username}`);
           return res.json({ authenticated: true, user });
+        } else {
+          console.log(`[Admin Login] ❌ User ${user.username} is not an admin (role: ${user.role})`);
+          return res.status(403).json({ error: 'Access Denied: User does not have admin role.' });
         }
+      } else {
+        console.log(`[Admin Login] ❌ No matching admin user for: ${target} | passwordMatch: ${passwordMatch}`);
       }
     } catch (err) {
       console.log('Error in admin-login:', err.message);
