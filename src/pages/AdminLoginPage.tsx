@@ -3,8 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ShieldAlert, ArrowRight } from 'lucide-react';
 import { setCookie } from '../utils/cookies';
 import { waf } from '../services/waf';
-
-const API_BASE_URL = 'http://localhost:5000/api';
+import { getApiUrl } from '../utils/apiConfig';
 
 export const AdminLoginPage: React.FC = () => {
   const [loginId, setLoginId] = useState('');
@@ -39,7 +38,7 @@ export const AdminLoginPage: React.FC = () => {
 
     try {
       // 3. Realtime MongoDB Admin Authentication
-      const res = await fetch(`${API_BASE_URL}/auth/admin-login`, {
+      const res = await fetch(getApiUrl('/auth/admin-login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loginId, password })

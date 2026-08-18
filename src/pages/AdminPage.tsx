@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDb } from '../context/DbContext';
 import { getCookie, deleteCookie } from '../utils/cookies';
 import { waf } from '../services/waf';
+import { getApiUrl } from '../utils/apiConfig';
 import type { WafLogEntry } from '../services/waf';
 import {
   ShieldAlert,
@@ -104,7 +105,7 @@ export const AdminPage: React.FC = () => {
   const [tickets, setTickets] = useState<any[]>([]);
   const fetchTickets = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/tickets');
+      const res = await fetch(getApiUrl('/tickets'));
       if (res.ok) {
         const data = await res.json();
         setTickets(data || []);
@@ -114,7 +115,7 @@ export const AdminPage: React.FC = () => {
 
   const handleUpdateTicketStatus = async (id: string, status: string) => {
     try {
-      await fetch(`http://localhost:5000/api/tickets/${id}`, {
+      await fetch(getApiUrl(`/tickets/${id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
