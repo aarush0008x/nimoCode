@@ -18,8 +18,8 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ user, onClos
     day: 'numeric'
   });
 
-  const handleDownloadCertificate = () => {
-    downloadCertificateAsImage(user);
+  const handleDownloadCertificate = async () => {
+    await downloadCertificateAsImage(user);
     setIsDownloaded(true);
     confetti({
       particleCount: 100,
@@ -28,6 +28,7 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ user, onClos
     });
     setTimeout(() => setIsDownloaded(false), 3000);
   };
+
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fade-in">

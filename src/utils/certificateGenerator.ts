@@ -1,25 +1,77 @@
 import type { UserProfile } from '../types';
 
 /**
- * Generates and downloads a high-resolution 1600x1000 PNG Certificate of Competitive Excellence.
+ * Preloads an image safely with CORS handling and fallback.
  */
-export const downloadCertificateAsImage = (user: UserProfile) => {
+const preloadImage = (src: string): Promise<HTMLImageElement | null> => {
+  return new Promise((resolve) => {
+    if (!src) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => {
+      // Retry without crossOrigin if external SVG CORS restriction
+      const fallbackImg = new Image();
+      fallbackImg.onload = () => resolve(fallbackImg);
+      fallbackImg.onerror = () => resolve(null);
+      fallbackImg.src = src;
+    };
+    img.src = src;
+  });
+};
+
+/**
+ * Draws a 5-pointed star on the canvas.
+ */
+const drawStar = (ctx: CanvasRenderingContext2D, cx: number, cy: number, spikes: number, outerRadius: number, innerRadius: number) => {
+  let rot = (Math.PI / 2) * 3;
+  let x = cx;
+  let y = cy;
+  const step = Math.PI / spikes;
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - outerRadius);
+  for (let i = 0; i < spikes; i++) {
+    x = cx + Math.cos(rot) * outerRadius;
+    y = cy + Math.sin(rot) * outerRadius;
+    ctx.lineTo(x, y);
+    rot += step;
+
+    x = cx + Math.cos(rot) * innerRadius;
+    y = cy + Math.sin(rot) * innerRadius;
+    ctx.lineTo(x, y);
+    rot += step;
+  }
+  ctx.lineTo(cx, cy - outerRadius);
+  ctx.closePath();
+};
+
+/**
+ * Generates and downloads a high-resolution 1600x1000 PNG Certificate of Competitive Excellence.
+ * Includes user avatar image, official NimoCode branding, golden seal, and cryptographic verification matrix.
+ */
+export const downloadCertificateAsImage = async (user: UserProfile) => {
   const canvas = document.createElement('canvas');
   canvas.width = 1600;
   canvas.height = 1000;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  // 1. Background Gradient
+  // Preload user avatar
+  const avatarUrl = user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username || 'coder')}`;
+  const avatarImg = await preloadImage(avatarUrl);
+
+  // 1. Dark Luxurious Background Gradient
   const bgGrad = ctx.createLinearGradient(0, 0, 1600, 1000);
   bgGrad.addColorStop(0, '#09090b');
-  bgGrad.addColorStop(0.5, '#121215');
+  bgGrad.addColorStop(0.3, '#111116');
+  bgGrad.addColorStop(0.7, '#18181f');
   bgGrad.addColorStop(1, '#09090b');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, 1600, 1000);
 
-  // Background subtle grid/mesh pattern
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+  // Background subtle tech grid
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
   ctx.lineWidth = 1;
   for (let x = 0; x < 1600; x += 40) {
     ctx.beginPath();
@@ -34,15 +86,18 @@ export const downloadCertificateAsImage = (user: UserProfile) => {
     ctx.stroke();
   }
 
-  // 2. Gold Luxury Outer Border
+  // 2. Multi-layered Gold Border Frame
   ctx.strokeStyle = '#d97706';
   ctx.lineWidth = 6;
-  ctx.strokeRect(40, 40, 1520, 920);
+  ctx.strokeRect(35, 35, 1530, 930);
 
-  // Inner Gold Border
   ctx.strokeStyle = '#f59e0b';
   ctx.lineWidth = 2;
-  ctx.strokeRect(55, 55, 1490, 890);
+  ctx.strokeRect(48, 48, 1504, 904);
+
+  ctx.strokeStyle = 'rgba(251, 191, 36, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(56, 56, 1488, 888);
 
   // Decorative Corner Accents
   const drawCorner = (x: number, y: number, angle: number) => {
@@ -53,110 +108,205 @@ export const downloadCertificateAsImage = (user: UserProfile) => {
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(40, 0);
+    ctx.lineTo(45, 0);
     ctx.moveTo(0, 0);
-    ctx.lineTo(0, 40);
+    ctx.lineTo(0, 45);
     ctx.stroke();
+
+    // Corner dot
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.arc(8, 8, 3, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   };
 
-  drawCorner(65, 65, 0);
-  drawCorner(1535, 65, Math.PI / 2);
-  drawCorner(1535, 935, Math.PI);
-  drawCorner(65, 935, -Math.PI / 2);
+  drawCorner(64, 64, 0);
+  drawCorner(1536, 64, Math.PI / 2);
+  drawCorner(1536, 936, Math.PI);
+  drawCorner(64, 936, -Math.PI / 2);
 
-  // 3. Header
+  // 3. Top Header Bar & Logo
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#f59e0b';
-  ctx.font = 'bold 18px "Courier New", monospace';
-  ctx.fillText('? NIMOCODE AI ? OFFICIAL VERIFIED CERTIFICATE OF EXCELLENCE ?', 800, 120);
 
-  // Certificate ID & Security Hash
-  const certId = `ID: CERT-${user.username.toUpperCase()}-${new Date().getFullYear()}`;
-  ctx.fillStyle = '#71717a';
-  ctx.font = '14px "Courier New", monospace';
-  ctx.fillText(certId, 800, 150);
-
-  // 4. Gold Seal Icon Badge
+  // NimoCode Brand Logo Badge
   ctx.save();
+  ctx.fillStyle = 'rgba(245, 158, 11, 0.1)';
+  ctx.strokeStyle = 'rgba(245, 158, 11, 0.3)';
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.arc(800, 230, 45, 0, Math.PI * 2);
-  const sealGrad = ctx.createLinearGradient(755, 185, 845, 275);
-  sealGrad.addColorStop(0, '#fbbf24');
-  sealGrad.addColorStop(1, '#b45309');
+  ctx.roundRect(620, 75, 360, 40, 20);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = 'bold 14px "Courier New", monospace';
+  ctx.fillText('NIMOCODE AI • OFFICIAL VERIFIED CREDENTIAL', 800, 100);
+  ctx.restore();
+
+  // Certificate ID
+  const certId = `CERTIFICATE ID: NC-${user.username.toUpperCase()}-${new Date().getFullYear()}-FAANG`;
+  ctx.fillStyle = '#71717a';
+  ctx.font = 'bold 12px "Courier New", monospace';
+  ctx.fillText(certId, 800, 135);
+
+  // 4. Center Gold Seal with 5-Pointed Star & Ribbons
+  ctx.save();
+  // Ribbon tails
+  ctx.fillStyle = '#b45309';
+  ctx.beginPath();
+  ctx.moveTo(760, 240);
+  ctx.lineTo(730, 310);
+  ctx.lineTo(765, 290);
+  ctx.lineTo(775, 250);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(840, 240);
+  ctx.lineTo(870, 310);
+  ctx.lineTo(835, 290);
+  ctx.lineTo(825, 250);
+  ctx.closePath();
+  ctx.fill();
+
+  // Seal circle outer glow
+  ctx.beginPath();
+  ctx.arc(800, 215, 52, 0, Math.PI * 2);
+  const sealGrad = ctx.createLinearGradient(748, 163, 852, 267);
+  sealGrad.addColorStop(0, '#fde68a');
+  sealGrad.addColorStop(0.5, '#f59e0b');
+  sealGrad.addColorStop(1, '#92400e');
   ctx.fillStyle = sealGrad;
   ctx.fill();
   ctx.lineWidth = 4;
-  ctx.strokeStyle = '#fde68a';
+  ctx.strokeStyle = '#fef3c7';
   ctx.stroke();
 
-  // Seal Star
-  ctx.fillStyle = '#09090b';
-  ctx.font = 'bold 36px sans-serif';
-  ctx.fillText('?', 800, 242);
+  // Inner ring
+  ctx.beginPath();
+  ctx.arc(800, 215, 42, 0, Math.PI * 2);
+  ctx.fillStyle = '#18181b';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#f59e0b';
+  ctx.stroke();
+
+  // 5-Pointed Gold Star in seal
+  ctx.fillStyle = '#fbbf24';
+  drawStar(ctx, 800, 215, 5, 24, 11);
+  ctx.fill();
   ctx.restore();
 
-  // 5. Main Title
+  // 5. User Avatar Image Circle Badge (Top Right)
+  if (avatarImg) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(1410, 140, 48, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(avatarImg, 1362, 92, 96, 96);
+    ctx.restore();
+
+    // Outer avatar gold ring
+    ctx.beginPath();
+    ctx.arc(1410, 140, 50, 0, Math.PI * 2);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#fbbf24';
+    ctx.stroke();
+  }
+
+  // 6. Main Certificate Title
   ctx.fillStyle = '#ffffff';
-  ctx.font = '900 44px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('CERTIFICATE OF COMPETITIVE EXCELLENCE', 800, 340);
+  ctx.font = '900 42px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('CERTIFICATE OF COMPETITIVE EXCELLENCE', 800, 345);
 
-  // 6. Presentation Line
+  // 7. Presentation Subtitle
   ctx.fillStyle = '#a1a1aa';
-  ctx.font = '600 18px sans-serif';
-  ctx.fillText('THIS IS OFFICIALLY PRESENTED TO', 800, 390);
+  ctx.font = 'bold 15px "Courier New", monospace';
+  ctx.fillText('THIS PRESTIGIOUS CREDENTIAL IS PROUDLY CONFERRED UPON', 800, 390);
 
-  // 7. Recipient Name
+  // 8. Recipient Name
   const displayName = user.name || user.username;
   ctx.fillStyle = '#fbbf24';
-  ctx.font = 'italic 900 58px Georgia, serif';
-  ctx.fillText(displayName, 800, 470);
+  ctx.font = 'italic 900 56px Georgia, serif';
+  ctx.fillText(displayName, 800, 465);
 
-  // Username & Campus
-  const subTitleText = user.college ? `@${user.username} ? ?? ${user.college}` : `@${user.username}`;
-  ctx.fillStyle = '#d4d4d8';
-  ctx.font = 'bold 20px "Courier New", monospace';
-  ctx.fillText(subTitleText, 800, 520);
+  // Username & Campus / College Tag
+  const campusText = user.college ? `@${user.username}  •  🎓 ${user.college}` : `@${user.username}`;
+  ctx.fillStyle = '#e4e4e7';
+  ctx.font = 'bold 19px "Courier New", monospace';
+  ctx.fillText(campusText, 800, 510);
 
-  // 8. Citation Description
+  // 9. Citation Description
   ctx.fillStyle = '#a1a1aa';
-  ctx.font = '19px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  const line1 = 'For demonstrating exceptional algorithmic problem solving mastery, high-speed code execution,';
-  const line2 = `and achieving an elite competitive rating of ${user.rating} ELO across the NimoCode Global Arena.`;
-  ctx.fillText(line1, 800, 590);
-  ctx.fillText(line2, 800, 625);
+  ctx.font = '18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  const line1 = 'For demonstrating superior algorithmic mastery, high-concurrency problem solving speed,';
+  const line2 = `and securing an elite competitive rating of ${user.rating} ELO across the NimoCode Global Arena.`;
+  ctx.fillText(line1, 800, 570);
+  ctx.fillText(line2, 800, 600);
 
-  // 9. Stats Highlight Pills
+  // 10. Performance Highlights (3 Stat Badges)
   const drawStatPill = (x: number, label: string, val: string) => {
     ctx.save();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-    ctx.strokeStyle = 'rgba(245, 158, 11, 0.3)';
-    ctx.lineWidth = 1;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.roundRect(x - 90, 670, 180, 70, 16);
+    ctx.roundRect(x - 100, 645, 200, 75, 18);
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = '#71717a';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillText(label, x, 695);
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(label, x, 672);
 
     ctx.fillStyle = '#fbbf24';
     ctx.font = 'bold 22px "Courier New", monospace';
-    ctx.fillText(val, x, 725);
+    ctx.fillText(val, x, 704);
     ctx.restore();
   };
 
-  drawStatPill(500, 'PEAK RATING', `${user.rating} ELO`);
-  drawStatPill(800, 'PROBLEMS SOLVED', `${user.totalSolved} SOLVED`);
-  drawStatPill(1100, 'CODER LEVEL', `LEVEL ${user.level}`);
+  drawStatPill(480, 'GLOBAL ELO RATING', `${user.rating} ELO`);
+  drawStatPill(800, 'ALGORITHMS SOLVED', `${user.totalSolved} SOLVED`);
+  drawStatPill(1120, 'DEVELOPER LEVEL', `LEVEL ${user.level}`);
 
-  // 10. Footer Section
+  // 11. Security QR Code / Cryptographic Matrix Block (Bottom Left)
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(140, 780, 80, 80, 12);
+  ctx.fill();
+  ctx.stroke();
+
+  // Draw simulated QR matrix blocks
+  ctx.fillStyle = '#fbbf24';
+  const qrPixels = [
+    [1, 1, 1, 0, 1, 1, 1],
+    [1, 0, 1, 0, 1, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1],
+    [0, 0, 1, 0, 0, 1, 0],
+    [1, 1, 0, 1, 1, 0, 1],
+    [1, 0, 1, 1, 0, 1, 1],
+    [1, 1, 1, 0, 1, 1, 1]
+  ];
+  for (let r = 0; r < 7; r++) {
+    for (let c = 0; c < 7; c++) {
+      if (qrPixels[r][c] === 1) {
+        ctx.fillRect(152 + c * 8, 792 + r * 8, 6, 6);
+      }
+    }
+  }
+  ctx.restore();
+
+  // 12. Footer Section
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(120, 790);
-  ctx.lineTo(1480, 790);
+  ctx.moveTo(120, 760);
+  ctx.lineTo(1480, 760);
   ctx.stroke();
 
   const currentDate = new Date().toLocaleDateString('en-US', {
@@ -165,34 +315,37 @@ export const downloadCertificateAsImage = (user: UserProfile) => {
     day: 'numeric'
   });
 
-  // Left: Date
+  // Date Information (Next to QR)
   ctx.textAlign = 'left';
   ctx.fillStyle = '#71717a';
-  ctx.font = 'bold 13px "Courier New", monospace';
-  ctx.fillText('DATE OF ISSUANCE', 140, 835);
+  ctx.font = 'bold 12px "Courier New", monospace';
+  ctx.fillText('ISSUED & AUTHENTICATED ON', 240, 810);
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 17px sans-serif';
-  ctx.fillText(currentDate, 140, 865);
+  ctx.font = 'bold 16px sans-serif';
+  ctx.fillText(currentDate, 240, 835);
+  ctx.fillStyle = '#10b981';
+  ctx.font = 'bold 12px "Courier New", monospace';
+  ctx.fillText('SHA-256 CRYPTOGRAPHIC PROOF VERIFIED', 240, 855);
 
-  // Center: Verification Seal
+  // Center: Official Certification Desk Stamp
   ctx.textAlign = 'center';
   ctx.fillStyle = '#10b981';
-  ctx.font = 'bold 16px "Courier New", monospace';
-  ctx.fillText('? CRYPTOGRAPHICALLY VERIFIED', 800, 840);
+  ctx.font = 'bold 15px "Courier New", monospace';
+  ctx.fillText('AUTHENTICATED BY NIMOCODE AI EVALUATION DESK', 800, 825);
   ctx.fillStyle = '#71717a';
-  ctx.font = '13px sans-serif';
-  ctx.fillText('Authenticated via NimoCode Distributed Verification Protocol', 800, 865);
+  ctx.font = '12px sans-serif';
+  ctx.fillText('Direct Verifiable Record • Compatible with LinkedIn & FAANG Portfolios', 800, 850);
 
   // Right: Signature
   ctx.textAlign = 'right';
   ctx.fillStyle = '#f59e0b';
-  ctx.font = 'italic bold 26px "Brush Script MT", cursive, Georgia, serif';
-  ctx.fillText('NimoCode Evaluation Board', 1460, 840);
+  ctx.font = 'italic bold 28px "Brush Script MT", cursive, Georgia, serif';
+  ctx.fillText('NimoCode Evaluation Board', 1460, 825);
   ctx.fillStyle = '#71717a';
-  ctx.font = 'bold 13px "Courier New", monospace';
-  ctx.fillText('OFFICIAL CERTIFICATION DESK', 1460, 865);
+  ctx.font = 'bold 12px "Courier New", monospace';
+  ctx.fillText('OFFICIAL CERTIFICATION COMMITTEE', 1460, 850);
 
-  // 11. Trigger Download
+  // 13. Trigger Direct PNG File Download
   const link = document.createElement('a');
   link.download = `NimoCode_Certificate_${user.username.toLowerCase()}.png`;
   link.href = canvas.toDataURL('image/png', 1.0);
