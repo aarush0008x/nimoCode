@@ -14,7 +14,18 @@ interface AuthContextType {
   logout: () => void;
   toggleAdminRole: () => void;
   markProblemSolved: (problemId: string, difficulty: Difficulty) => void;
+  updateUserProfile: (updates: {
+    name?: string;
+    bio?: string;
+    college?: string;
+    gradYear?: number | string;
+    major?: string;
+    socialLinks?: { github?: string; linkedin?: string; twitter?: string; website?: string };
+  }) => Promise<void>;
+  addFriend: (targetUsername: string) => Promise<boolean>;
+  removeFriend: (targetUsername: string) => Promise<void>;
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -219,7 +230,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             achievements: [
               { id: 'first-sub', title: 'First Steps', description: 'Joined NimoCode AI platform.', icon: '🚀', unlocked: true }
             ],
-            submissionHeatmap: authUser.submissionHeatmap || {}
+            submissionHeatmap: authUser.submissionHeatmap || {},
+            bio: authUser.bio || '',
+            college: authUser.college || '',
+            gradYear: authUser.gradYear || '',
+            major: authUser.major || '',
+            friends: authUser.friends || [],
+            socialLinks: authUser.socialLinks || {}
           };
 
           setUser(profile);
@@ -265,7 +282,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         achievements: [
           { id: 'first-sub', title: 'First Steps', description: 'Joined NimoCode AI platform.', icon: '🚀', unlocked: true }
         ],
-        submissionHeatmap: localAuthUser.submissionHeatmap || {}
+        submissionHeatmap: localAuthUser.submissionHeatmap || {},
+        bio: localAuthUser.bio || '',
+        college: localAuthUser.college || '',
+        gradYear: localAuthUser.gradYear || '',
+        major: localAuthUser.major || '',
+        friends: localAuthUser.friends || [],
+        socialLinks: localAuthUser.socialLinks || {}
       };
 
       setUser(profile);
@@ -307,7 +330,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         achievements: [
           { id: 'first-sub', title: 'New Challenger', description: 'Registered real NimoCode account.', icon: '🚀', unlocked: true }
         ],
-        submissionHeatmap: {}
+        submissionHeatmap: {},
+        bio: '',
+        college: '',
+        gradYear: '',
+        major: '',
+        friends: [],
+        socialLinks: {}
       };
 
       setUser(profile);
@@ -350,7 +379,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         recommendedTopic,
         skillBreakdown,
         achievements: [{ id: 'google-join', title: 'Google Member', description: 'Signed in with Google.', icon: '🔵', unlocked: true }],
-        submissionHeatmap: {}
+        submissionHeatmap: {},
+        bio: u.bio || '',
+        college: u.college || '',
+        gradYear: u.gradYear || '',
+        major: u.major || '',
+        friends: u.friends || [],
+        socialLinks: u.socialLinks || {}
       };
       setUser(profile);
       return true;
@@ -358,6 +393,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
   };
+
 
   const logout = () => {
     setUser(null);
@@ -438,6 +474,89 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const updateUserProfile = async (updates: {
+    name?: string;
+    bio?: string;
+    college?: string;
+    gradYear?: number | string;
+    major?: string;
+    socialLinks?: { github?: string; linkedin?: string; twitter?: string; website?: string };
+  }) => {
+    if (!user) return;
+    const updated: UserProfile = {
+      ...user,
+      ...updates
+    };
+    setUser(updated);
+
+    // Sync to local DB
+    db.updateUser(user.username, updates);
+
+    // Sync to MongoDB Express backend
+    try {
+      await fetch(getApiUrl(`/users/${encodeURIComponent(user.username)}/progress`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+    } catch {}
+
+    window.dispatchEvent(new Event('nimocode_db_update'));
+  };
+
+  const addFriend = async (targetUsername: string): Promise<boolean> => {
+    if (!user || !targetUsername) return false;
+    const cleanTarget = targetUsername.trim().toLowerCase();
+    if (cleanTarget === user.username.toLowerCase()) return false;
+
+    const currentFriends = user.friends || [];
+    if (currentFriends.includes(cleanTarget)) return true;
+
+    const newFriends = [...currentFriends, cleanTarget];
+    const updated: UserProfile = {
+      ...user,
+      friends: newFriends
+    };
+    setUser(updated);
+
+    db.updateUser(user.username, { friends: newFriends });
+
+    try {
+      await fetch(getApiUrl(`/users/${encodeURIComponent(user.username)}/progress`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friends: newFriends })
+      });
+    } catch {}
+
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return true;
+  };
+
+  const removeFriend = async (targetUsername: string) => {
+    if (!user || !targetUsername) return;
+    const cleanTarget = targetUsername.trim().toLowerCase();
+    const currentFriends = user.friends || [];
+    const newFriends = currentFriends.filter(f => f.toLowerCase() !== cleanTarget);
+
+    const updated: UserProfile = {
+      ...user,
+      friends: newFriends
+    };
+    setUser(updated);
+
+    db.updateUser(user.username, { friends: newFriends });
+
+    try {
+      await fetch(getApiUrl(`/users/${encodeURIComponent(user.username)}/progress`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friends: newFriends })
+      });
+    } catch {}
+
+    window.dispatchEvent(new Event('nimocode_db_update'));
+  };
 
   return (
     <AuthContext.Provider
@@ -449,13 +568,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithGoogle,
         logout,
         toggleAdminRole,
-        markProblemSolved
+        markProblemSolved,
+        updateUserProfile,
+        addFriend,
+        removeFriend
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
+
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

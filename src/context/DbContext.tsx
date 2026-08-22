@@ -60,6 +60,7 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
             localUsers.forEach(u => map.set(u.username.toLowerCase(), u));
             apiUsers.forEach(u => {
               if (u.username) {
+                const prevLocal = map.get(u.username.toLowerCase());
                 map.set(u.username.toLowerCase(), {
                   _id: u._id || `user-${u.username}`,
                   rank: u.rank || 1,
@@ -79,8 +80,15 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
                   currentXP: u.currentXP || 0,
                   nextLevelXP: u.nextLevelXP || 1000,
                   solvedProblemIds: u.solvedProblemIds || [],
-                  submissionHeatmap: u.submissionHeatmap || {}
+                  submissionHeatmap: u.submissionHeatmap || {},
+                  bio: u.bio || prevLocal?.bio || '',
+                  college: u.college || prevLocal?.college || '',
+                  gradYear: u.gradYear || prevLocal?.gradYear || '',
+                  major: u.major || prevLocal?.major || '',
+                  friends: u.friends || prevLocal?.friends || [],
+                  socialLinks: u.socialLinks || prevLocal?.socialLinks || {}
                 });
+
               }
             });
 

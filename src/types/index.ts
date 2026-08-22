@@ -132,6 +132,11 @@ export interface LeaderboardEntry {
   country?: string;
   badge?: string;
   trend: 'up' | 'down' | 'same';
+  college?: string;
+  gradYear?: number | string;
+  major?: string;
+  bio?: string;
+  isFriend?: boolean;
   categoryScores?: {
     arrays: number;
     strings: number;
@@ -151,6 +156,13 @@ export interface Achievement {
   unlockedAt?: string;
   progress?: number;
   maxProgress?: number;
+}
+
+export interface SocialLinks {
+  github?: string;
+  linkedin?: string;
+  twitter?: string;
+  website?: string;
 }
 
 export interface UserProfile {
@@ -180,7 +192,14 @@ export interface UserProfile {
   skillBreakdown: Record<Category, number>;
   achievements: Achievement[];
   submissionHeatmap: Record<string, number>; // 'YYYY-MM-DD': count
+  bio?: string;
+  college?: string;
+  gradYear?: number | string;
+  major?: string;
+  friends?: string[];
+  socialLinks?: SocialLinks;
 }
+
 
 export interface SolutionPost {
   id: string;

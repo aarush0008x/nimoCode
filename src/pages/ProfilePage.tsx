@@ -5,23 +5,32 @@ import {
   Zap,
   UserCheck,
   ArrowRight,
-  Award
+  Award,
+  Edit3,
+  GraduationCap,
+  Globe,
+  Users
 } from 'lucide-react';
+import { GitHubIcon, LinkedInIcon, TwitterIcon } from '../components/common/SocialIcons';
 import { useAuth } from '../context/AuthContext';
+
 import { ContributionHeatmap } from '../components/profile/ContributionHeatmap';
 import { SkillRadar } from '../components/profile/SkillRadar';
 import { AchievementCard } from '../components/profile/AchievementCard';
 import { GitHubSyncCard } from '../components/profile/GitHubSyncCard';
 import { CertificateModal } from '../components/profile/CertificateModal';
-
-import { getRankDivision } from '../utils/ranks';
 import { DailyQuestsModal } from '../components/profile/DailyQuestsModal';
+import { EditProfileModal } from '../components/profile/EditProfileModal';
+import { FriendsSection } from '../components/profile/FriendsSection';
+import { getRankDivision } from '../utils/ranks';
 
 export const ProfilePage: React.FC = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'achievements'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'achievements' | 'friends'>('overview');
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [showQuestsModal, setShowQuestsModal] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+
 
   if (!user) {
     return (
@@ -59,21 +68,21 @@ export const ProfilePage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 space-y-8">
       {/* Profile Header Banner */}
-      <div className="p-8 rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs relative overflow-hidden space-y-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <div className="relative">
+      <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs relative overflow-hidden space-y-6">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            <div className="relative shrink-0">
               <img
                 src={user.avatar}
                 alt={user.name}
-                className="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-neutral-800 shadow-lg"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover border-4 border-white dark:border-neutral-800 shadow-lg"
               />
               <span className="absolute bottom-0 right-0 p-1.5 rounded-full bg-emerald-500 text-white text-xs border-2 border-white dark:border-neutral-900" title="Online" />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-2 text-left">
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-extrabold text-neutral-950 dark:text-white tracking-tight">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-950 dark:text-white tracking-tight">
                   {user.name}
                 </h1>
                 {(() => {
@@ -85,10 +94,95 @@ export const ProfilePage: React.FC = () => {
                     </span>
                   );
                 })()}
+
+                <button
+                  onClick={() => setShowEditProfileModal(true)}
+                  className="px-3 py-1 rounded-full border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
+                  title="Edit Profile & College Info"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Edit Profile</span>
+                </button>
               </div>
-              <p className="text-xs font-mono text-neutral-400">@{user.username} {user.email ? `• ${user.email}` : ''}</p>
+
+              <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-neutral-500">
+                <span className="text-neutral-400">@{user.username}</span>
+                {user.email && <span>• {user.email}</span>}
+                {user.college && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20 font-sans">
+                    <GraduationCap className="w-3.5 h-3.5" />
+                    <span>{user.college}</span>
+                    {user.gradYear && <span className="font-mono">'{String(user.gradYear).slice(-2)}</span>}
+                  </span>
+                )}
+                {user.major && (
+                  <span className="text-neutral-400 font-sans">({user.major})</span>
+                )}
+              </div>
+
+              {/* Bio snippet */}
+              {user.bio ? (
+                <p className="text-xs text-neutral-600 dark:text-neutral-300 max-w-xl leading-relaxed pt-1">
+                  {user.bio}
+                </p>
+              ) : (
+                <p className="text-xs text-neutral-400 italic pt-1 cursor-pointer hover:text-amber-500 transition-colors" onClick={() => setShowEditProfileModal(true)}>
+                  + Add bio, university, and social links to customize your profile...
+                </p>
+              )}
+
+              {/* Social Links */}
+              {user.socialLinks && Object.values(user.socialLinks).some(Boolean) && (
+                <div className="flex items-center gap-2 pt-1">
+                  {user.socialLinks?.github && (
+                    <a
+                      href={user.socialLinks.github.startsWith('http') ? user.socialLinks.github : `https://github.com/${user.socialLinks.github}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-neutral-950 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                      title="GitHub Profile"
+                    >
+                      <GitHubIcon className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  {user.socialLinks?.linkedin && (
+                    <a
+                      href={user.socialLinks.linkedin.startsWith('http') ? user.socialLinks.linkedin : `https://linkedin.com/in/${user.socialLinks.linkedin}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-sky-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                      title="LinkedIn Profile"
+                    >
+                      <LinkedInIcon className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  {user.socialLinks?.twitter && (
+                    <a
+                      href={user.socialLinks.twitter.startsWith('http') ? user.socialLinks.twitter : `https://x.com/${user.socialLinks.twitter}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-sky-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                      title="Twitter / X"
+                    >
+                      <TwitterIcon className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  {user.socialLinks.website && (
+                    <a
+                      href={user.socialLinks.website.startsWith('http') ? user.socialLinks.website : `https://${user.socialLinks.website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-emerald-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                      title="Personal Website"
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
           </div>
+
 
           {/* Gamification Level & XP bar */}
           <div className="flex flex-col gap-3">
@@ -173,6 +267,19 @@ export const ProfilePage: React.FC = () => {
         >
           Overview
         </button>
+
+        <button
+          onClick={() => setActiveTab('friends')}
+          className={`px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-2 ${
+            activeTab === 'friends'
+              ? 'bg-neutral-950 text-white dark:bg-white dark:text-neutral-950 font-bold shadow-xs'
+              : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Friends ({user.friends?.length || 0})</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('achievements')}
           className={`px-4 py-2 rounded-xl transition-all duration-200 ${
@@ -184,6 +291,7 @@ export const ProfilePage: React.FC = () => {
           Achievements ({user.achievements.length})
         </button>
       </div>
+
 
       {/* Overview Tab Content */}
       {activeTab === 'overview' && (
@@ -259,6 +367,14 @@ export const ProfilePage: React.FC = () => {
         </div>
       )}
 
+      {/* Friends Tab Content */}
+      {activeTab === 'friends' && (
+        <FriendsSection
+          user={user}
+          onOpenEditProfile={() => setShowEditProfileModal(true)}
+        />
+      )}
+
       {/* Achievements Tab Content */}
       {activeTab === 'achievements' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -266,6 +382,14 @@ export const ProfilePage: React.FC = () => {
             <AchievementCard key={ach.id} achievement={ach} />
           ))}
         </div>
+      )}
+
+      {/* Modals */}
+      {showEditProfileModal && (
+        <EditProfileModal
+          user={user}
+          onClose={() => setShowEditProfileModal(false)}
+        />
       )}
 
       {showCertificateModal && (
@@ -284,3 +408,4 @@ export const ProfilePage: React.FC = () => {
     </div>
   );
 };
+

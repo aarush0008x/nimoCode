@@ -27,6 +27,17 @@ export type DbUserRecord = LeaderboardEntry & {
   level?: number;
   solvedProblemIds?: string[];
   submissionHeatmap?: Record<string, number>;
+  bio?: string;
+  college?: string;
+  gradYear?: number | string;
+  major?: string;
+  friends?: string[];
+  socialLinks?: {
+    github?: string;
+    linkedin?: string;
+    twitter?: string;
+    website?: string;
+  };
   solvedStats?: {
     easy: number;
     easyTotal: number;
@@ -36,6 +47,7 @@ export type DbUserRecord = LeaderboardEntry & {
     hardTotal: number;
   };
 };
+
 
 // Seed initial database if empty
 const seedDatabaseIfEmpty = () => {
