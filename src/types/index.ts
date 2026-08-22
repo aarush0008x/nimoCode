@@ -198,7 +198,9 @@ export interface UserProfile {
   major?: string;
   friends?: string[];
   socialLinks?: SocialLinks;
+  role?: 'admin' | 'user' | 'moderator';
 }
+
 
 
 export interface SolutionPost {

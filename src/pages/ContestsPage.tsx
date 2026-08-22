@@ -8,10 +8,17 @@ export const ContestsPage: React.FC = () => {
   const { contests } = useDb();
   const [activeTab, setActiveTab] = useState<'ALL' | 'LIVE' | 'UPCOMING' | 'PAST'>('ALL');
 
-  const filteredContests = contests.filter(c => {
+  const validContests = (contests || []).filter(c => 
+    c && c.title && c.title.toLowerCase() !== 'test' && 
+    c.subtitle && c.subtitle.toLowerCase() !== 'test' && 
+    !c.id.toLowerCase().includes('test')
+  );
+
+  const filteredContests = validContests.filter(c => {
     if (activeTab === 'ALL') return true;
     return c.status === activeTab;
   });
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 space-y-8">

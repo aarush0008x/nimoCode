@@ -62,9 +62,22 @@ const seedDatabaseIfEmpty = () => {
     localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(cleanProbs));
   }
 
+  // Ensure clean contests without dummy test items
+  try {
+    const rawContests = localStorage.getItem(STORAGE_KEYS.CONTESTS);
+    if (rawContests) {
+      const parsed = JSON.parse(rawContests);
+      const cleaned = parsed.filter((c: any) => 
+        c && c.title && c.title.toLowerCase() !== 'test' && c.subtitle && c.subtitle.toLowerCase() !== 'test' && !c.id.toLowerCase().includes('test')
+      );
+      localStorage.setItem(STORAGE_KEYS.CONTESTS, JSON.stringify(cleaned));
+    }
+  } catch {}
+
   if (!localStorage.getItem(STORAGE_KEYS.CONTESTS)) {
-    localStorage.setItem(STORAGE_KEYS.CONTESTS, JSON.stringify(MOCK_CONTESTS));
+    localStorage.setItem(STORAGE_KEYS.CONTESTS, JSON.stringify([]));
   }
+
 
   // Clear old fake discussions
   try {
@@ -186,9 +199,11 @@ export const db = {
     const contests = db.getContests();
     const filtered = contests.filter(c => c.id !== id);
     localStorage.setItem(STORAGE_KEYS.CONTESTS, JSON.stringify(filtered));
+    fetch(getApiUrl(`/contests/${encodeURIComponent(id)}`), { method: 'DELETE' }).catch(() => {});
     window.dispatchEvent(new Event('nimocode_db_update'));
     return true;
   },
+
 
   // USERS & REAL MONGODB LEADERBOARD
   getUsers: (): DbUserRecord[] => {

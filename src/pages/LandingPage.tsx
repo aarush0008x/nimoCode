@@ -20,8 +20,18 @@ export const LandingPage: React.FC = () => {
   const [heroRunning, setHeroRunning] = useState(false);
   const [heroExecuted, setHeroExecuted] = useState(false);
 
-  const totalSubmissionsCount = (submissions?.length || 0) + 2391;
-  const totalSolvedCount = (users || []).reduce((acc, u) => acc + (u.solvedCount || 0), 0) + 12481;
+  // 100% Real-time dynamic stats directly from active database records
+  const totalSolvedCount = (users || []).reduce((acc, u) => acc + (u.solvedCount || 0), 0);
+  const totalSubmissionsCount = (submissions?.length || 0) + totalSolvedCount;
+  const activeCodersCount = (users || []).length;
+
+  // Filter out any dummy test contests
+  const validContests = (contests || []).filter(c => 
+    c && c.title && c.title.toLowerCase() !== 'test' && 
+    c.subtitle && c.subtitle.toLowerCase() !== 'test' && 
+    !c.id.toLowerCase().includes('test')
+  );
+
 
   const handleHeroRunCode = () => {
     setHeroRunning(true);
@@ -95,9 +105,10 @@ export const LandingPage: React.FC = () => {
               </div>
               <div className="hidden sm:block text-neutral-300 dark:text-neutral-700">•</div>
               <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-bold">
-                <Users className="w-3.5 h-3.5 inline" /> {users.length} active coders
+                <Users className="w-3.5 h-3.5 inline" /> {activeCodersCount} active coder{activeCodersCount !== 1 ? 's' : ''}
               </div>
             </div>
+
           </ScrollReveal>
         </div>
 
@@ -323,12 +334,19 @@ public:
         </ScrollReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {contests.slice(0, 3).map((contest, idx) => (
-            <ScrollReveal key={contest.id} delayMs={idx * 80}>
-              <ContestCard contest={contest} />
-            </ScrollReveal>
-          ))}
+          {validContests.length > 0 ? (
+            validContests.slice(0, 3).map((contest, idx) => (
+              <ScrollReveal key={contest.id} delayMs={idx * 80}>
+                <ContestCard contest={contest} />
+              </ScrollReveal>
+            ))
+          ) : (
+            <div className="col-span-full p-8 rounded-3xl bg-neutral-900 border border-neutral-800 text-center text-neutral-400 text-xs">
+              <span>No active contests currently running. Click "Host Your Own Contest" to schedule one!</span>
+            </div>
+          )}
         </div>
+
       </section>
 
       {/* 6. REAL LEADERBOARD PREVIEW */}

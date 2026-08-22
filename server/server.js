@@ -871,12 +871,39 @@ app.put('/api/users/:username/progress', async (req, res) => {
 app.get('/api/contests', async (req, res) => {
   if (isConnected && mongoDb) {
     try {
-      const contests = await mongoDb.collection('contests').find().sort({ _id: -1 }).toArray();
+      // Auto-purge any dummy 'test' contests from collection
+      await mongoDb.collection('contests').deleteMany({
+        $or: [
+          { title: { $regex: /^test$/i } },
+          { title: { $regex: /^fake/i } },
+          { subtitle: { $regex: /^test$/i } }
+        ]
+      });
+
+      const contests = await mongoDb.collection('contests').find({
+        title: { $not: { $regex: /^test$/i } }
+      }).sort({ _id: -1 }).toArray();
       return res.json(contests);
     } catch {}
   }
-  const contests = getCollection('contests');
-  res.json(contests);
+  const contests = getCollection('contests') || [];
+  const filtered = contests.filter(c => (c.title || '').toLowerCase() !== 'test' && (c.subtitle || '').toLowerCase() !== 'test');
+  saveCollection('contests', filtered);
+  res.json(filtered);
+});
+
+app.delete('/api/contests/:id', async (req, res) => {
+  const { id } = req.params;
+  if (isConnected && mongoDb) {
+    try {
+      await mongoDb.collection('contests').deleteOne({ $or: [{ id }, { _id: id }] });
+      return res.json({ success: true, message: 'Contest deleted from MongoDB Atlas.' });
+    } catch {}
+  }
+  const contests = getCollection('contests') || [];
+  const filtered = contests.filter(c => c.id !== id && c._id !== id);
+  saveCollection('contests', filtered);
+  res.json({ success: true, message: 'Contest deleted successfully.' });
 });
 
 app.post('/api/contests', async (req, res) => {
@@ -909,6 +936,7 @@ app.post('/api/contests', async (req, res) => {
   saveCollection('contests', contests);
   res.status(201).json(newContest);
 });
+
 
 // CONTEST REGISTRATION
 app.put('/api/contests/:id/register', async (req, res) => {

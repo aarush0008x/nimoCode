@@ -1,13 +1,28 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Trophy, Clock, Users, Gift, ArrowRight } from 'lucide-react';
+import { Trophy, Clock, Users, Gift, ArrowRight, Trash2 } from 'lucide-react';
 import type { Contest } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { useDb } from '../../context/DbContext';
 
 interface ContestCardProps {
   contest: Contest;
 }
 
 export const ContestCard: React.FC<ContestCardProps> = ({ contest }) => {
+  const { user } = useAuth();
+  const { deleteContest } = useDb();
+
+  const isAdmin = user && (user.role === 'admin' || user.username.toLowerCase() === 'aarush' || user.username.toLowerCase() === 'admin');
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.confirm(`Are you sure you want to delete contest "${contest.title}"?`)) {
+      deleteContest(contest.id);
+    }
+  };
+
   const getBadgeStyle = () => {
     switch (contest.status) {
       case 'LIVE':
@@ -20,15 +35,26 @@ export const ContestCard: React.FC<ContestCardProps> = ({ contest }) => {
   };
 
   return (
-    <div className="p-6 rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600 transition-all duration-200 shadow-xs hover:shadow-md flex flex-col justify-between space-y-6">
+    <div className="p-6 rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600 transition-all duration-200 shadow-xs hover:shadow-md flex flex-col justify-between space-y-6 relative">
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <span className={`px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider border ${getBadgeStyle()}`}>
             {contest.status === 'LIVE' ? '🔴 LIVE NOW' : contest.status}
           </span>
-          <div className="flex items-center gap-1 text-xs font-mono text-neutral-500">
-            <Users className="w-3.5 h-3.5" />
-            <span>{contest.participantsCount.toLocaleString()} coders</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 text-xs font-mono text-neutral-500">
+              <Users className="w-3.5 h-3.5" />
+              <span>{contest.participantsCount?.toLocaleString() || 0} coders</span>
+            </div>
+            {isAdmin && (
+              <button
+                onClick={handleDelete}
+                title="Delete Contest"
+                className="p-1 rounded-lg text-neutral-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -57,7 +83,7 @@ export const ContestCard: React.FC<ContestCardProps> = ({ contest }) => {
               <span>Problems</span>
             </div>
             <div className="font-bold text-neutral-900 dark:text-white font-mono">
-              {contest.problems.length} Challenges
+              {contest.problems?.length || 0} Challenges
             </div>
           </div>
         </div>
@@ -84,3 +110,4 @@ export const ContestCard: React.FC<ContestCardProps> = ({ contest }) => {
     </div>
   );
 };
+
