@@ -23,7 +23,9 @@ import { SubmissionResult } from '../components/problem/SubmissionResult';
 import { AIChat } from '../components/problem/AIChat';
 import { SolutionExplorer } from '../components/problem/SolutionExplorer';
 import { ProblemDiscussion } from '../components/problem/ProblemDiscussion';
+import { ProblemTimer } from '../components/problem/ProblemTimer';
 import { AICodeReviewModal } from '../components/problem/AICodeReviewModal';
+
 import { AIDebuggerModal } from '../components/problem/AIDebuggerModal';
 import type { ProgrammingLanguage, Submission } from '../types';
 import { runCodeExecution } from '../utils/codeRunner';
@@ -160,8 +162,10 @@ export const ProblemDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Prev & Next Problem Navigation Buttons */}
-        <div className="flex items-center gap-2">
+        {/* Timer & Navigation Buttons */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <ProblemTimer />
+
           {prevProblem && (
             <Link
               to={`/problems/${prevProblem.id}`}
@@ -172,6 +176,7 @@ export const ProblemDetailPage: React.FC = () => {
               <span className="hidden sm:inline">Prev</span>
             </Link>
           )}
+
 
           {nextProblem && (
             <Link
@@ -322,9 +327,10 @@ export const ProblemDetailPage: React.FC = () => {
             )}
 
             {activeTab === 'solutions' && <SolutionExplorer problemId={problem.id} />}
-            {activeTab === 'discussions' && <ProblemDiscussion problemId={problem.id} />}
+            {activeTab === 'discussions' && <ProblemDiscussion problemId={problem.id} problemTitle={problem.title} />}
           </div>
         </div>
+
 
         {/* RIGHT PANEL: Code Editor or AI Assistant */}
         <div className="lg:col-span-7 flex flex-col space-y-4">

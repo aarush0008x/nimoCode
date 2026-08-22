@@ -389,11 +389,11 @@ export const db = {
     const updated = [newPost, ...discussions];
     localStorage.setItem(STORAGE_KEYS.DISCUSSIONS, JSON.stringify(updated));
 
-    // Sync to MongoDB Server
-    fetch(`${API_BASE_URL}/discussions`, {
+    // Sync to MongoDB Atlas API
+    fetch(getApiUrl('/discussions'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(post)
+      body: JSON.stringify(newPost)
     }).catch(() => {});
 
     window.dispatchEvent(new Event('nimocode_db_update'));
@@ -404,6 +404,12 @@ export const db = {
     const discussions = db.getDiscussions();
     const filtered = discussions.filter(d => d.id !== id);
     localStorage.setItem(STORAGE_KEYS.DISCUSSIONS, JSON.stringify(filtered));
+
+    // Sync deletion to MongoDB Atlas API
+    fetch(getApiUrl(`/discussions/${encodeURIComponent(id)}`), {
+      method: 'DELETE'
+    }).catch(() => {});
+
     window.dispatchEvent(new Event('nimocode_db_update'));
   },
 
@@ -414,11 +420,14 @@ export const db = {
       discussions[index].upvotes += 1;
       localStorage.setItem(STORAGE_KEYS.DISCUSSIONS, JSON.stringify(discussions));
 
-      fetch(`${API_BASE_URL}/discussions/${id}/upvote`, { method: 'PUT' }).catch(() => {});
+      fetch(getApiUrl(`/discussions/${encodeURIComponent(id)}/upvote`), {
+        method: 'PUT'
+      }).catch(() => {});
 
       window.dispatchEvent(new Event('nimocode_db_update'));
     }
   },
+
 
   getSolutions: (): SolutionPost[] => {
     try {

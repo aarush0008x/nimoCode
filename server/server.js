@@ -1048,6 +1048,104 @@ app.put('/api/contests/:id/score', async (req, res) => {
 });
 
 
+// REALTIME DISCUSSIONS
+app.get('/api/discussions', async (req, res) => {
+  const { problemId } = req.query;
+  const filter = {
+    author: { $nin: ['cpp_master', 'coder_pro', 'sarah_tech'] }
+  };
+  if (problemId) {
+    filter.problemId = problemId;
+  }
+
+  if (isConnected && mongoDb) {
+    try {
+      // Auto-purge any old fake discussions
+      await mongoDb.collection('discussions').deleteMany({
+        author: { $in: ['cpp_master', 'coder_pro', 'sarah_tech'] }
+      });
+
+      const discussions = await mongoDb.collection('discussions').find(filter).sort({ _id: -1 }).toArray();
+      return res.json(discussions);
+    } catch {}
+  }
+
+  const discussions = getCollection('discussions') || [];
+  const clean = discussions.filter(d => d.author !== 'cpp_master' && d.author !== 'coder_pro' && d.author !== 'sarah_tech');
+  if (problemId) {
+    return res.json(clean.filter(d => d.problemId === problemId));
+  }
+  res.json(clean);
+});
+
+app.post('/api/discussions', async (req, res) => {
+  const newPost = {
+    _id: req.body.id || `disc-${Date.now()}`,
+    id: req.body.id || `disc-${Date.now()}`,
+    problemId: req.body.problemId || '',
+    problemTitle: req.body.problemTitle || '',
+    title: req.body.title || '',
+    content: req.body.content || '',
+    author: req.body.author || 'Anonymous',
+    authorAvatar: req.body.authorAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(req.body.author || 'Anonymous')}`,
+    category: req.body.category || 'General',
+    tags: req.body.tags || ['Discussion'],
+    upvotes: req.body.upvotes || 1,
+    repliesCount: req.body.repliesCount || 0,
+    createdAt: new Date().toISOString()
+  };
+
+  if (isConnected && mongoDb) {
+    try {
+      await mongoDb.collection('discussions').insertOne(newPost);
+      return res.status(201).json(newPost);
+    } catch {}
+  }
+
+  const discussions = getCollection('discussions') || [];
+  discussions.unshift(newPost);
+  saveCollection('discussions', discussions);
+  res.status(201).json(newPost);
+});
+
+app.put('/api/discussions/:id/upvote', async (req, res) => {
+  const { id } = req.params;
+  if (isConnected && mongoDb) {
+    try {
+      await mongoDb.collection('discussions').updateOne(
+        { $or: [{ id }, { _id: id }] },
+        { $inc: { upvotes: 1 } }
+      );
+      const updated = await mongoDb.collection('discussions').findOne({ $or: [{ id }, { _id: id }] });
+      return res.json(updated);
+    } catch {}
+  }
+
+  const discussions = getCollection('discussions') || [];
+  const idx = discussions.findIndex(d => d.id === id || d._id === id);
+  if (idx !== -1) {
+    discussions[idx].upvotes = (discussions[idx].upvotes || 0) + 1;
+    saveCollection('discussions', discussions);
+    return res.json(discussions[idx]);
+  }
+  res.status(404).json({ error: 'Discussion not found' });
+});
+
+app.delete('/api/discussions/:id', async (req, res) => {
+  const { id } = req.params;
+  if (isConnected && mongoDb) {
+    try {
+      await mongoDb.collection('discussions').deleteOne({ $or: [{ id }, { _id: id }] });
+      return res.json({ success: true, message: 'Discussion deleted from MongoDB Atlas' });
+    } catch {}
+  }
+
+  const discussions = getCollection('discussions') || [];
+  const filtered = discussions.filter(d => d.id !== id && d._id !== id);
+  saveCollection('discussions', filtered);
+  res.json({ success: true, message: 'Discussion deleted' });
+});
+
 // SUBMISSIONS
 app.get('/api/submissions', async (req, res) => {
   if (isConnected && mongoDb) {
@@ -1059,6 +1157,7 @@ app.get('/api/submissions', async (req, res) => {
   const subs = getCollection('submissions');
   res.json(subs);
 });
+
 
 // REALTIME SUPPORT TICKETS ENDPOINTS
 app.get('/api/tickets', async (req, res) => {

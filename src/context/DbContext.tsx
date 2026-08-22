@@ -108,10 +108,24 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         const res = await fetch(getApiUrl('/contests'));
         if (res.ok) {
           const apiContests = await res.json();
-          if (Array.isArray(apiContests) && apiContests.length > 0) {
-            // MongoDB Atlas is the real-time source of truth
-            setContests(apiContests);
-            localStorage.setItem('nimocode_contests_v1', JSON.stringify(apiContests));
+          if (Array.isArray(apiContests)) {
+            const cleanContests = apiContests.filter(c => (c.title || '').toLowerCase() !== 'test' && (c.subtitle || '').toLowerCase() !== 'test');
+            setContests(cleanContests);
+            localStorage.setItem('nimocode_contests_v1', JSON.stringify(cleanContests));
+          }
+        }
+      } catch {}
+    };
+
+    const fetchLiveDiscussions = async () => {
+      try {
+        const res = await fetch(getApiUrl('/discussions'));
+        if (res.ok) {
+          const apiDiscussions = await res.json();
+          if (Array.isArray(apiDiscussions)) {
+            const clean = apiDiscussions.filter(d => d.author !== 'cpp_master' && d.author !== 'coder_pro' && d.author !== 'sarah_tech');
+            setDiscussions(clean);
+            localStorage.setItem('nimocode_discussions_v1', JSON.stringify(clean));
           }
         }
       } catch {}
@@ -119,16 +133,19 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 
     fetchLiveUsers();
     fetchLiveContests();
+    fetchLiveDiscussions();
 
     const interval = setInterval(() => {
       fetchLiveUsers();
       fetchLiveContests();
+      fetchLiveDiscussions();
     }, 4000);
 
     const handleDbUpdate = () => {
       refreshDb();
       fetchLiveUsers();
       fetchLiveContests();
+      fetchLiveDiscussions();
     };
 
     window.addEventListener('nimocode_db_update', handleDbUpdate);
@@ -137,6 +154,7 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       window.removeEventListener('nimocode_db_update', handleDbUpdate);
     };
   }, []);
+
 
   const handleAddContest = (contestData: Omit<Contest, 'id' | 'participantsCount'>): Contest => {
     const created = db.addContest(contestData);
