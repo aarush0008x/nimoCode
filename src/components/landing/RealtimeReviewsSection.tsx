@@ -92,61 +92,83 @@ export const RealtimeReviewsSection: React.FC = () => {
         </div>
       </ScrollReveal>
 
-      {/* Reviews Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {(reviews || []).map((rev, idx) => (
-          <ScrollReveal key={rev.id || idx} delayMs={idx * 60}>
-            <div className="p-6 rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600 transition-all duration-200 shadow-xs hover:shadow-md flex flex-col justify-between space-y-4 h-full">
-              <div className="space-y-3">
-                {/* Rating & Timestamp */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-0.5 text-amber-500">
-                    {[...Array(rev.rating || 5)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 fill-amber-500" />
-                    ))}
-                  </div>
-                  <span className="text-[10px] font-mono text-neutral-400">{rev.createdAt || 'Recent'}</span>
-                </div>
-
-                {/* Review Body */}
-                <p className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed font-medium">
-                  "{rev.feedback}"
-                </p>
-              </div>
-
-              {/* Author & Likes */}
-              <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <img
-                    src={rev.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(rev.username || 'coder')}`}
-                    alt={rev.name}
-                    className="w-8 h-8 rounded-full border border-neutral-200 dark:border-neutral-800 object-cover shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-neutral-900 dark:text-white truncate">
-                      {rev.name}
+      {/* Reviews Cards Grid or Empty State */}
+      {(reviews || []).length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {(reviews || []).map((rev, idx) => (
+            <ScrollReveal key={rev.id || idx} delayMs={idx * 60}>
+              <div className="p-6 rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600 transition-all duration-200 shadow-xs hover:shadow-md flex flex-col justify-between space-y-4 h-full">
+                <div className="space-y-3">
+                  {/* Rating & Timestamp */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-0.5 text-amber-500">
+                      {[...Array(rev.rating || 5)].map((_, i) => (
+                        <Star key={i} className="w-3.5 h-3.5 fill-amber-500" />
+                      ))}
                     </div>
-                    {rev.companyOrCollege && (
-                      <div className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate">
-                        {rev.companyOrCollege}
-                      </div>
-                    )}
+                    <span className="text-[10px] font-mono text-neutral-400">{rev.createdAt || 'Recent'}</span>
                   </div>
+
+                  {/* Review Body */}
+                  <p className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed font-medium">
+                    "{rev.feedback}"
+                  </p>
                 </div>
 
-                <button
-                  onClick={() => likeReview(rev.id)}
-                  className="flex items-center gap-1 text-[11px] font-mono text-neutral-400 hover:text-rose-500 transition-colors shrink-0 p-1"
-                  title="Helpful Review"
-                >
-                  <Heart className="w-3.5 h-3.5 hover:fill-rose-500" />
-                  <span>{rev.likes || 1}</span>
-                </button>
+                {/* Author & Likes */}
+                <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img
+                      src={rev.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(rev.username || 'coder')}`}
+                      alt={rev.name}
+                      className="w-8 h-8 rounded-full border border-neutral-200 dark:border-neutral-800 object-cover shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                        {rev.name}
+                      </div>
+                      {rev.companyOrCollege && (
+                        <div className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate">
+                          {rev.companyOrCollege}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => likeReview(rev.id)}
+                    className="flex items-center gap-1 text-[11px] font-mono text-neutral-400 hover:text-rose-500 transition-colors shrink-0 p-1"
+                    title="Helpful Review"
+                  >
+                    <Heart className="w-3.5 h-3.5 hover:fill-rose-500" />
+                    <span>{rev.likes || 1}</span>
+                  </button>
+                </div>
               </div>
-            </div>
-          </ScrollReveal>
-        ))}
-      </div>
+            </ScrollReveal>
+          ))}
+        </div>
+      ) : (
+        <div className="p-10 rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-center space-y-4 shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mx-auto">
+            <Sparkles className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-neutral-950 dark:text-white">No community reviews yet</h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
+              Be the first engineer to review NimoCode! Share your rating and experience with the community.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowModal(true)}
+            className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-neutral-950 font-extrabold text-xs shadow-md transition-all inline-flex items-center gap-2"
+          >
+            <MessageSquarePlus className="w-4 h-4" />
+            <span>Write the First Review</span>
+          </button>
+        </div>
+      )}
+
 
       {/* Write a Review Modal */}
       {showModal && (

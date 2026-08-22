@@ -1,8 +1,8 @@
 import { generateLeetCode2000Problems } from '../data/leetcodeDataset';
 import { MOCK_CONTESTS } from '../data/contests';
-import { GLOBAL_COMMUNITY_USERS } from '../data/leaderboard';
 import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission, UserReview } from '../types';
 import { getApiUrl } from '../utils/apiConfig';
+
 
 const LEETCODE_2000_PROBLEMS = generateLeetCode2000Problems();
 
@@ -100,14 +100,28 @@ const seedDatabaseIfEmpty = () => {
     localStorage.setItem(STORAGE_KEYS.SOLUTIONS, JSON.stringify([]));
   }
 
-  // Purge fake seed users from localStorage
+  // Purge all fake seed users & fake reviews from localStorage
   try {
-    const existingUsers = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (existingUsers && (existingUsers.includes('tourist') || existingUsers.includes('benq'))) {
-      localStorage.removeItem(STORAGE_KEYS.USERS);
+    const fakeUsernames = [
+      'tourist', 'benq', 'alex_algo', 'priya_dev', 'dkim_coder', 'rohan_g', 'elena_r',
+      'dev_p', 'mvance', 'ananya_m', 'chen_wei', 'vikram_aditya', 'emily_w', 'neha_v',
+      'lucas_s', 'rahul_nair', 'sophia_t', 'sid_rao', 'cpp_master', 'coder_pro', 'sarah_tech'
+    ];
+    const rawUsers = localStorage.getItem(STORAGE_KEYS.USERS);
+    if (rawUsers) {
+      const parsed = JSON.parse(rawUsers);
+      const cleaned = parsed.filter((u: any) => u && !fakeUsernames.includes((u.username || '').toLowerCase()));
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(cleaned));
+    }
+    const rawReviews = localStorage.getItem(STORAGE_KEYS.REVIEWS);
+    if (rawReviews) {
+      const parsed = JSON.parse(rawReviews);
+      const cleaned = parsed.filter((r: any) => r && !fakeUsernames.includes((r.username || '').toLowerCase()));
+      localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(cleaned));
     }
   } catch {}
 };
+
 
 seedDatabaseIfEmpty();
 
@@ -214,38 +228,23 @@ export const db = {
       const data = localStorage.getItem(STORAGE_KEYS.USERS);
       const rawUsers: DbUserRecord[] = data ? JSON.parse(data) : [];
 
-      const map = new Map<string, DbUserRecord>();
-      
-      // Initialize with all global registered community competitors
-      GLOBAL_COMMUNITY_USERS.forEach(u => {
-        map.set(u.username.toLowerCase(), {
-          ...u,
-          _id: `user-${u.username}`,
-          email: `${u.username}@nimocode.ai`,
-          isBanned: false
-        });
-      });
+      const fakeUsernames = [
+        'tourist', 'benq', 'alex_algo', 'priya_dev', 'dkim_coder', 'rohan_g', 'elena_r',
+        'dev_p', 'mvance', 'ananya_m', 'chen_wei', 'vikram_aditya', 'emily_w', 'neha_v',
+        'lucas_s', 'rahul_nair', 'sophia_t', 'sid_rao', 'cpp_master', 'coder_pro', 'sarah_tech'
+      ];
 
-      // Merge / overwrite with any active/local user modifications
-      rawUsers.forEach(u => {
-        if (u && u.username) {
-          const prev = map.get(u.username.toLowerCase());
-          map.set(u.username.toLowerCase(), {
-            ...prev,
-            ...u
-          });
-        }
-      });
-
-      const merged = Array.from(map.values()).sort((a, b) => (b.rating || 1200) - (a.rating || 1200));
-      return merged.map((user, idx) => ({
+      const realUsers = rawUsers.filter(u => u && u.username && !fakeUsernames.includes(u.username.toLowerCase()));
+      const sorted = [...realUsers].sort((a, b) => (b.rating || 1200) - (a.rating || 1200));
+      return sorted.map((user, idx) => ({
         ...user,
         rank: idx + 1
       }));
     } catch {
-      return (GLOBAL_COMMUNITY_USERS as any) || [];
+      return [];
     }
   },
+
 
 
   addUser: (userData: { name: string; username: string; email: string; password?: string }): DbUserRecord => {
