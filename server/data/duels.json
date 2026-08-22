@@ -1,0 +1,28 @@
+[
+  {
+    "_id": "match-1787382394871",
+    "id": "match-1787382394871",
+    "player1": {
+      "username": "bodhai",
+      "name": "BodhAi",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=bodhai",
+      "rating": 1200,
+      "status": "coding",
+      "testCasesPassed": 0
+    },
+    "player2": {
+      "username": "Waiting Opponent...",
+      "name": "Waiting Opponent",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=waiting",
+      "rating": 1200,
+      "status": "coding",
+      "testCasesPassed": 0
+    },
+    "problemId": "1",
+    "problemTitle": "#1 Two Sum",
+    "difficulty": "Easy",
+    "ratingStakes": 30,
+    "status": "LIVE",
+    "createdAt": "2026-08-22T07:06:34.871Z"
+  }
+]

@@ -9,6 +9,7 @@ import dns from 'dns';
 import vm from 'vm';
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
+import { OAuth2Client } from 'google-auth-library';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -803,33 +804,172 @@ app.put('/api/tickets/:id', async (req, res) => {
   res.status(404).json({ error: 'Ticket not found' });
 });
 
+// ─── GOOGLE OAUTH LOGIN ─────────────────────────────────────────────────────
+const googleClient = new OAuth2Client();
+
+app.post('/api/auth/google', async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ error: 'Google token required.' });
+
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    return res.status(500).json({ error: 'Google OAuth not configured on server.' });
+  }
+
+  try {
+    const ticket = await googleClient.verifyIdToken({ idToken: token, audience: clientId });
+    const payload = ticket.getPayload();
+    if (!payload) return res.status(401).json({ error: 'Invalid Google token.' });
+
+    const { email, name, picture, sub: googleId } = payload;
+    const username = (email.split('@')[0] + '_g').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+
+    let userDoc = null;
+
+    if (isConnected && mongoDb) {
+      const usersCol = mongoDb.collection('users');
+      userDoc = await usersCol.findOne({ $or: [{ googleId }, { email }] });
+
+      if (!userDoc) {
+        userDoc = {
+          _id: `google-${googleId}`,
+          googleId,
+          name: name || username,
+          username,
+          email,
+          avatar: picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
+          password: null,
+          rating: 1200,
+          rank: 9999,
+          solvedCount: 0,
+          solvedProblemIds: [],
+          level: 1,
+          currentXP: 0,
+          nextLevelXP: 1000,
+          streak: 1,
+          role: 'user',
+          createdAt: new Date().toISOString()
+        };
+        await usersCol.insertOne(userDoc);
+        console.log(`[Google Auth] ✅ New user created: ${email}`);
+      } else {
+        await usersCol.updateOne({ _id: userDoc._id }, { $set: { googleId, avatar: picture || userDoc.avatar } });
+        console.log(`[Google Auth] ✅ Existing user logged in: ${email}`);
+      }
+    } else {
+      userDoc = { name: name || username, username, email, avatar: picture, rating: 1200, rank: 9999, solvedCount: 0, level: 1, currentXP: 0, nextLevelXP: 1000, streak: 1, role: 'user' };
+    }
+
+    return res.json({ success: true, user: userDoc });
+  } catch (err) {
+    console.error('[Google Auth Error]', err.message);
+    return res.status(401).json({ error: 'Google token verification failed.' });
+  }
+});
+
+// ─── DUEL ROOM SYSTEM ───────────────────────────────────────────────────────
+// In-memory store for fast real-time access (also persisted to MongoDB)
+const duelRooms = new Map();
+
+const generateRoomCode = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+};
+
+// GET /api/duels — list all open public rooms
+app.get('/api/duels', (req, res) => {
+  const rooms = Array.from(duelRooms.values())
+    .filter(r => r.status === 'waiting' || r.status === 'active')
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 50);
+  res.json(rooms);
+});
+
+// POST /api/duels — create a new room
 app.post('/api/duels', async (req, res) => {
-  const { player1, problemId, problemTitle, ratingStakes } = req.body;
-  const newDuel = {
-    _id: `match-${Date.now()}`,
-    id: `match-${Date.now()}`,
-    player1: player1 || { username: 'aarush', name: 'Aarush', avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=aarush', rating: 1200, status: 'coding', testCasesPassed: 0 },
-    player2: { username: 'Waiting Opponent...', name: 'Waiting Opponent', avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=waiting', rating: 1200, status: 'coding', testCasesPassed: 0 },
+  const { player1, problemId, problemTitle, ratingStakes, isPrivate } = req.body;
+  const code = generateRoomCode();
+  const id = `room-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const newRoom = {
+    id,
+    _id: id,
+    code,
+    player1: player1 || { username: 'Guest', name: 'Guest', rating: 1200 },
+    player2: null,
     problemId: problemId || '1',
     problemTitle: problemTitle || '#1 Two Sum',
     difficulty: 'Easy',
     ratingStakes: ratingStakes || 30,
-    status: 'LIVE',
+    isPrivate: !!isPrivate,
+    status: 'waiting',
+    winner: null,
     createdAt: new Date().toISOString()
   };
 
+  duelRooms.set(id, newRoom);
+
+  // Also persist to MongoDB
   if (isConnected && mongoDb) {
-    try {
-      await mongoDb.collection('duels').insertOne(newDuel);
-      return res.status(201).json(newDuel);
-    } catch {}
+    try { await mongoDb.collection('duels').insertOne({ ...newRoom }); } catch {}
   }
 
-  const duels = getCollection('duels') || [];
-  duels.unshift(newDuel);
-  saveCollection('duels', duels);
-  res.status(201).json(newDuel);
+  console.log(`[Duel] ✅ Room created: ${code} (${isPrivate ? 'private' : 'public'}) by ${newRoom.player1.username}`);
+  res.status(201).json(newRoom);
 });
+
+// GET /api/duels/:id — get single room by ID
+app.get('/api/duels/:id', (req, res) => {
+  const room = duelRooms.get(req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found.' });
+  res.json(room);
+});
+
+// GET /api/duels/code/:code — get room by code
+app.get('/api/duels/code/:code', (req, res) => {
+  const code = (req.params.code || '').toUpperCase();
+  const room = Array.from(duelRooms.values()).find(r => r.code === code);
+  if (!room) return res.status(404).json({ error: 'Room not found.' });
+  res.json(room);
+});
+
+// PUT /api/duels/:id/join — join room as player2
+app.put('/api/duels/:id/join', async (req, res) => {
+  const room = duelRooms.get(req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found.' });
+  if (room.status !== 'waiting') return res.status(400).json({ error: 'Room is no longer open.' });
+
+  const { player2 } = req.body;
+  room.player2 = player2 || { username: 'Opponent', rating: 1200 };
+  room.status = 'active';
+  duelRooms.set(room.id, room);
+
+  if (isConnected && mongoDb) {
+    try { await mongoDb.collection('duels').updateOne({ id: room.id }, { $set: { player2: room.player2, status: 'active' } }); } catch {}
+  }
+
+  console.log(`[Duel] ✅ ${room.player2.username} joined room ${room.code}`);
+  res.json(room);
+});
+
+// PUT /api/duels/:id/submit — declare winner
+app.put('/api/duels/:id/submit', async (req, res) => {
+  const room = duelRooms.get(req.params.id);
+  if (!room) return res.status(404).json({ error: 'Room not found.' });
+
+  const { winner } = req.body;
+  if (!room.winner) {
+    room.winner = winner;
+    room.status = 'finished';
+    duelRooms.set(room.id, room);
+    if (isConnected && mongoDb) {
+      try { await mongoDb.collection('duels').updateOne({ id: room.id }, { $set: { winner, status: 'finished' } }); } catch {}
+    }
+    console.log(`[Duel] 🏆 Room ${room.code} won by ${winner}`);
+  }
+  res.json(room);
+});
+
 
 app.post('/api/submissions', async (req, res) => {
   const submission = req.body;

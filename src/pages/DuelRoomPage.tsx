@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Swords, Trophy, Clock, ChevronLeft, ArrowRight, Zap } from 'lucide-react';
+import { Swords, Trophy, Clock, ChevronLeft, ArrowRight, Zap, Users } from 'lucide-react';
 import { useDb } from '../context/DbContext';
 import { useAuth } from '../context/AuthContext';
 import { CodeEditor } from '../components/problem/CodeEditor';
 import { SubmissionResult } from '../components/problem/SubmissionResult';
 import type { ProgrammingLanguage, Submission } from '../types';
 import { runCodeExecution } from '../utils/codeRunner';
+import { getApiUrl } from '../utils/apiConfig';
 import confetti from 'canvas-confetti';
 
 export const DuelRoomPage: React.FC = () => {
-  const { matchId: _matchId } = useParams<{ matchId: string }>();
+  const { matchId } = useParams<{ matchId: string }>();
   const { problems } = useDb();
   const { user, markProblemSolved } = useAuth();
 
@@ -20,27 +21,39 @@ export const DuelRoomPage: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [submission, setSubmission] = useState<Submission | null>(null);
 
-  // Match State
-  const [timerSeconds, setTimerSeconds] = useState(600); // 10 minutes
-  const [opponentProgress, setOpponentProgress] = useState({ status: 'Coding...', testCases: 0 });
+  // Room / Match State
+  const [timerSeconds, setTimerSeconds] = useState(600);
+  const [roomData, setRoomData] = useState<any>(null);
   const [matchWinner, setMatchWinner] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Timer countdown
   useEffect(() => {
     const timer = setInterval(() => {
       setTimerSeconds(prev => (prev > 0 ? prev - 1 : 0));
     }, 1000);
-
-    // Simulate opponent progress after 8 seconds
-    const oppTimer = setTimeout(() => {
-      setOpponentProgress({ status: 'Testing code...', testCases: 1 });
-    }, 8000);
-
-    return () => {
-      clearInterval(timer);
-      clearTimeout(oppTimer);
-    };
+    return () => clearInterval(timer);
   }, []);
+
+  // Poll room state every 2s to get real opponent join + winner
+  useEffect(() => {
+    if (!matchId) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(getApiUrl(`/duels/${matchId}`));
+        if (res.ok) {
+          const data = await res.json();
+          setRoomData(data);
+          if (data.winner && !matchWinner) {
+            setMatchWinner(data.winner);
+          }
+        }
+      } catch {}
+    };
+    poll();
+    pollRef.current = setInterval(poll, 2000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [matchId]);
 
   const handleLanguageChange = (newLang: ProgrammingLanguage) => {
     setSelectedLang(newLang);
@@ -66,15 +79,22 @@ export const DuelRoomPage: React.FC = () => {
     setIsRunning(false);
 
     if (result.status === 'Accepted') {
-      const winnerName = user?.username || 'aarush';
+      const winnerName = user?.username || 'Player';
       setMatchWinner(winnerName);
       markProblemSolved(problem.id, problem.difficulty);
 
-      confetti({
-        particleCount: 120,
-        spread: 90,
-        origin: { y: 0.5 }
-      });
+      // Notify backend of winner
+      if (matchId) {
+        try {
+          await fetch(getApiUrl(`/duels/${matchId}/submit`), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ winner: winnerName })
+          });
+        } catch {}
+      }
+
+      confetti({ particleCount: 120, spread: 90, origin: { y: 0.5 } });
     }
   };
 
@@ -120,26 +140,43 @@ export const DuelRoomPage: React.FC = () => {
           <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-3 shadow-xs">
             <div className="flex items-center justify-between text-xs font-bold">
               <span className="text-neutral-500 uppercase tracking-wider text-[10px]">Opponent Status</span>
-              <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 font-mono text-[10px]">LIVE MATCH QUEUE</span>
+              <span className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold ${
+                roomData?.player2
+                  ? 'bg-emerald-500/10 text-emerald-500'
+                  : 'bg-amber-500/10 text-amber-500'
+              }`}>
+                {roomData?.player2 ? '🟢 IN MATCH' : '⏳ WAITING FOR OPPONENT'}
+              </span>
             </div>
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-neutral-100 dark:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center justify-center text-xs">
-                  👤
+                <div className="w-9 h-9 rounded-full bg-neutral-100 dark:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center justify-center text-xs overflow-hidden">
+                  {roomData?.player2?.avatar
+                    ? <img src={roomData.player2.avatar} className="w-full h-full object-cover" />
+                    : roomData?.player2 ? <span>{roomData.player2.username?.[0]?.toUpperCase()}</span> : <Users className="w-4 h-4 opacity-40" />
+                  }
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-neutral-950 dark:text-white">Waiting Opponent</div>
-                  <div className="text-[10px] text-neutral-400 font-mono">Realtime Match Queue</div>
+                  <div className="text-xs font-bold text-neutral-950 dark:text-white">
+                    {roomData?.player2 ? `@${roomData.player2.username}` : 'Waiting for opponent...'}
+                  </div>
+                  <div className="text-[10px] text-neutral-400 font-mono">
+                    {roomData?.player2 ? `${roomData.player2.rating} ELO` : 'Share your room code!'}
+                  </div>
                 </div>
               </div>
-
               <div className="text-right font-mono text-xs">
-                <div className="font-bold text-neutral-800 dark:text-neutral-200">{opponentProgress.status}</div>
-                <div className="text-[10px] text-neutral-400">Test Cases: {opponentProgress.testCases}/2</div>
+                <div className="font-bold text-neutral-800 dark:text-neutral-200">
+                  {roomData?.winner ? `🏆 ${roomData.winner} won` : roomData?.player2 ? 'Coding...' : '—'}
+                </div>
+                {roomData?.code && (
+                  <div className="text-[10px] text-neutral-400">Code: <span className="font-black text-amber-500">{roomData.code}</span></div>
+                )}
               </div>
             </div>
           </div>
+
 
           {/* Problem Details */}
           <div className="flex-1 p-5 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-y-auto max-h-[580px] space-y-4">

@@ -2,12 +2,14 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { UserProfile, Difficulty } from '../types';
 import { db } from '../services/db';
 import { setCookie, getCookie, deleteCookie } from '../utils/cookies';
+import { getApiUrl } from '../utils/apiConfig';
 
 interface AuthContextType {
   user: UserProfile | null;
   isAdmin: boolean;
   login: (loginId: string, passwordInput: string) => boolean;
   signup: (name: string, email: string, username: string, passwordInput: string) => boolean;
+  loginWithGoogle: (googleToken: string) => Promise<boolean>;
   logout: () => void;
   toggleAdminRole: () => void;
   markProblemSolved: (problemId: string, difficulty: Difficulty) => void;
@@ -132,6 +134,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
+  const loginWithGoogle = async (googleToken: string): Promise<boolean> => {
+    try {
+      const res = await fetch(getApiUrl('/auth/google'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: googleToken })
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data.user) return false;
+      const u = data.user;
+      const profile: UserProfile = {
+        username: u.username,
+        name: u.name,
+        email: u.email,
+        avatar: u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.username}`,
+        title: u.badge || 'Google Member',
+        rating: u.rating || 1200,
+        globalRank: u.rank || 9999,
+        totalSolved: u.solvedCount || 0,
+        solvedProblemIds: u.solvedProblemIds || [],
+        solvedStats: u.solvedStats || { easy: 0, easyTotal: 820, medium: 0, mediumTotal: 1450, hard: 0, hardTotal: 680 },
+        streakDays: u.streak || 1,
+        level: u.level || 1,
+        currentXP: u.currentXP || 0,
+        nextLevelXP: u.nextLevelXP || 1000,
+        weakArea: 'Arrays',
+        recommendedTopic: 'Start with Easy Array problems.',
+        skillBreakdown: { 'Arrays': 10, 'Strings': 10, 'Trees': 5, 'Graphs': 5, 'Dynamic Programming': 5, 'SQL': 5, 'Algorithms': 10, 'Binary Search': 5, 'Stack': 10, 'Hash Table': 10, 'Math': 10, 'Heap': 5 },
+        achievements: [{ id: 'google-join', title: 'Google Member', description: 'Signed in with Google.', icon: '🔵', unlocked: true }],
+        submissionHeatmap: {}
+      };
+      setUser(profile);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const logout = () => {
     setUser(null);
     setIsAdmin(false);
@@ -211,6 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAdmin,
         login,
         signup,
+        loginWithGoogle,
         logout,
         toggleAdminRole,
         markProblemSolved
