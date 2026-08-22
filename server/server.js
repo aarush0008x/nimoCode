@@ -766,38 +766,86 @@ app.put('/api/users/:username/role', async (req, res) => {
   res.status(404).json({ error: 'User not found in MongoDB' });
 });
 
+const DEFAULT_COMMUNITY_USERS = [
+  { rank: 1, name: 'Alex Rivera', username: 'alex_algo', rating: 2480, solvedCount: 1420, streak: 48, college: 'Stanford University', badge: 'Grandmaster', country: 'USA' },
+  { rank: 2, name: 'Priya Sharma', username: 'priya_dev', rating: 2390, solvedCount: 1280, streak: 35, college: 'IIT Bombay', badge: 'Grandmaster', country: 'India' },
+  { rank: 3, name: 'David Kim', username: 'dkim_coder', rating: 2310, solvedCount: 1150, streak: 42, college: 'MIT', badge: 'Master', country: 'South Korea' },
+  { rank: 4, name: 'Rohan Gupta', username: 'rohan_g', rating: 2240, solvedCount: 980, streak: 29, college: 'IIT Delhi', badge: 'Master', country: 'India' },
+  { rank: 5, name: 'Elena Rostova', username: 'elena_r', rating: 2180, solvedCount: 890, streak: 21, college: 'ETH Zurich', badge: 'Knight', country: 'Germany' },
+  { rank: 6, name: 'Dev Patel', username: 'dev_p', rating: 2110, solvedCount: 820, streak: 19, college: 'BITS Pilani', badge: 'Knight', country: 'India' },
+  { rank: 7, name: 'Marcus Vance', username: 'mvance', rating: 2050, solvedCount: 760, streak: 15, college: 'University of Waterloo', badge: 'Knight', country: 'Canada' },
+  { rank: 8, name: 'Ananya Mishra', username: 'ananya_m', rating: 1980, solvedCount: 690, streak: 24, college: 'IIT Bombay', badge: 'Knight', country: 'India' },
+  { rank: 9, name: 'Chen Wei', username: 'chen_wei', rating: 1920, solvedCount: 630, streak: 18, college: 'National University of Singapore', badge: 'Knight', country: 'Singapore' },
+  { rank: 10, name: 'Vikram Aditya', username: 'vikram_aditya', rating: 1860, solvedCount: 570, streak: 12, college: 'NIT Trichy', badge: 'Knight', country: 'India' },
+  { rank: 11, name: 'Emily Watson', username: 'emily_w', rating: 1810, solvedCount: 510, streak: 14, college: 'University of Cambridge', badge: 'Specialist', country: 'UK' },
+  { rank: 12, name: 'Neha Verma', username: 'neha_v', rating: 1750, solvedCount: 460, streak: 16, college: 'IIIT Hyderabad', badge: 'Specialist', country: 'India' },
+  { rank: 13, name: 'Lucas Silva', username: 'lucas_s', rating: 1690, solvedCount: 410, streak: 11, college: 'University of São Paulo', badge: 'Specialist', country: 'Brazil' },
+  { rank: 14, name: 'Rahul Nair', username: 'rahul_nair', rating: 1630, solvedCount: 360, streak: 9, college: 'IIT Madras', badge: 'Specialist', country: 'India' },
+  { rank: 15, name: 'Sophia Taylor', username: 'sophia_t', rating: 1580, solvedCount: 310, streak: 8, college: 'UC Berkeley', badge: 'Pupil', country: 'USA' },
+  { rank: 16, name: 'Siddharth Rao', username: 'sid_rao', rating: 1520, solvedCount: 270, streak: 7, college: 'IIT Roorkee', badge: 'Pupil', country: 'India' }
+];
+
 // USERS
 app.get('/api/users', async (req, res) => {
+  const userMap = new Map();
+  DEFAULT_COMMUNITY_USERS.forEach(u => {
+    userMap.set(u.username.toLowerCase(), {
+      _id: `user-${u.username}`,
+      rank: u.rank,
+      name: u.name,
+      username: u.username,
+      email: `${u.username}@nimocode.ai`,
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.username)}`,
+      rating: u.rating,
+      solvedCount: u.solvedCount,
+      streak: u.streak,
+      college: u.college,
+      badge: u.badge,
+      country: u.country,
+      role: 'user',
+      level: Math.floor(u.solvedCount / 50) + 1
+    });
+  });
+
   if (isConnected && mongoDb) {
     try {
-      const users = await mongoDb.collection('users').find().sort({ rating: -1 }).toArray();
-      const mapped = users.map((u, idx) => ({
-        ...u,
-        rank: idx + 1,
-        name: u.name || u.username,
-        username: u.username,
-        email: u.email || `${u.username}@nimocode.ai`,
-        avatar: u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.username)}`,
-        rating: u.rating || 1200,
-        solvedCount: u.solvedCount || 0,
-        streak: u.streak || 1,
-        level: u.level || 1,
-        role: u.role || 'user'
-      }));
-      return res.json(mapped);
+      const dbUsers = await mongoDb.collection('users').find().toArray();
+      dbUsers.forEach(u => {
+        if (u.username) {
+          const prev = userMap.get(u.username.toLowerCase());
+          userMap.set(u.username.toLowerCase(), {
+            ...prev,
+            ...u,
+            name: u.name || prev?.name || u.username,
+            avatar: u.avatar || prev?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.username)}`,
+            rating: u.rating || prev?.rating || 1200,
+            solvedCount: u.solvedCount !== undefined ? u.solvedCount : (prev?.solvedCount || 0)
+          });
+        }
+      });
     } catch {}
+  } else {
+    const localUsers = getCollection('users') || [];
+    localUsers.forEach(u => {
+      if (u.username) {
+        const prev = userMap.get(u.username.toLowerCase());
+        userMap.set(u.username.toLowerCase(), {
+          ...prev,
+          ...u,
+          name: u.name || prev?.name || u.username,
+          avatar: u.avatar || prev?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.username)}`,
+          rating: u.rating || prev?.rating || 1200,
+          solvedCount: u.solvedCount !== undefined ? u.solvedCount : (prev?.solvedCount || 0)
+        });
+      }
+    });
   }
-  const users = getCollection('users');
-  const sorted = [...users].sort((a, b) => (b.rating || 1200) - (a.rating || 1200)).map((u, i) => ({
-    ...u,
-    rank: i + 1,
-    name: u.name || u.username,
-    avatar: u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.username)}`,
-    rating: u.rating || 1200,
-    solvedCount: u.solvedCount || 0
-  }));
-  res.json(sorted);
+
+  const allUsers = Array.from(userMap.values()).sort((a, b) => (b.rating || 1200) - (a.rating || 1200));
+  const ranked = allUsers.map((u, idx) => ({ ...u, rank: idx + 1 }));
+  res.json(ranked);
 });
+
 
 app.get('/api/users/:username', async (req, res) => {
   const { username } = req.params;

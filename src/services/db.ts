@@ -1,7 +1,9 @@
 import { generateLeetCode2000Problems } from '../data/leetcodeDataset';
 import { MOCK_CONTESTS } from '../data/contests';
+import { GLOBAL_COMMUNITY_USERS } from '../data/leaderboard';
 import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission } from '../types';
 import { getApiUrl } from '../utils/apiConfig';
+
 
 const LEETCODE_2000_PROBLEMS = generateLeetCode2000Problems();
 
@@ -211,15 +213,39 @@ export const db = {
       const data = localStorage.getItem(STORAGE_KEYS.USERS);
       const rawUsers: DbUserRecord[] = data ? JSON.parse(data) : [];
 
-      const sorted = [...rawUsers].sort((a, b) => b.rating - a.rating);
-      return sorted.map((user, idx) => ({
+      const map = new Map<string, DbUserRecord>();
+      
+      // Initialize with all global registered community competitors
+      GLOBAL_COMMUNITY_USERS.forEach(u => {
+        map.set(u.username.toLowerCase(), {
+          ...u,
+          _id: `user-${u.username}`,
+          email: `${u.username}@nimocode.ai`,
+          isBanned: false
+        });
+      });
+
+      // Merge / overwrite with any active/local user modifications
+      rawUsers.forEach(u => {
+        if (u && u.username) {
+          const prev = map.get(u.username.toLowerCase());
+          map.set(u.username.toLowerCase(), {
+            ...prev,
+            ...u
+          });
+        }
+      });
+
+      const merged = Array.from(map.values()).sort((a, b) => (b.rating || 1200) - (a.rating || 1200));
+      return merged.map((user, idx) => ({
         ...user,
         rank: idx + 1
       }));
     } catch {
-      return [];
+      return (GLOBAL_COMMUNITY_USERS as any) || [];
     }
   },
+
 
   addUser: (userData: { name: string; username: string; email: string; password?: string }): DbUserRecord => {
     const users = db.getUsers();
