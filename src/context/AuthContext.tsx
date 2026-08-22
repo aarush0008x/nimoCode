@@ -7,7 +7,7 @@ import { getApiUrl } from '../utils/apiConfig';
 interface AuthContextType {
   user: UserProfile | null;
   isAdmin: boolean;
-  login: (loginId: string, passwordInput: string) => boolean;
+  login: (loginId: string, passwordInput: string) => Promise<boolean>;
   signup: (name: string, email: string, username: string, passwordInput: string) => boolean;
   loginWithGoogle: (googleToken: string) => Promise<boolean>;
   logout: () => void;
@@ -56,26 +56,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  const login = (loginId: string, passwordInput: string): boolean => {
-    const authUser = db.authenticateUser(loginId, passwordInput);
-    if (authUser) {
+  const login = async (loginId: string, passwordInput: string): Promise<boolean> => {
+    const trimmedId = loginId.trim();
+    const trimmedPass = passwordInput.trim();
+
+    // 1. Real MongoDB Atlas Authentication API
+    try {
+      const res = await fetch(getApiUrl('/auth/login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId: trimmedId, password: trimmedPass })
+      });
+      if (res.ok) {
+        const authUser = await res.json();
+        if (authUser && authUser.username) {
+          // Cache in local db
+          db.addUser({
+            name: authUser.name || authUser.username,
+            email: authUser.email || `${authUser.username}@nimocode.ai`,
+            username: authUser.username,
+            password: authUser.password || trimmedPass
+          });
+
+          const profile: UserProfile = {
+            username: authUser.username,
+            name: authUser.name || authUser.username,
+            email: authUser.email || `${authUser.username}@nimocode.ai`,
+            avatar: authUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(authUser.username)}`,
+            title: authUser.badge || 'Competitive Coder',
+            rating: authUser.rating || 1200,
+            globalRank: authUser.rank || 1,
+            totalSolved: authUser.solvedCount || 0,
+            solvedProblemIds: authUser.solvedProblemIds || [],
+            solvedStats: authUser.solvedStats || {
+              easy: 0, easyTotal: 820, medium: 0, mediumTotal: 1450, hard: 0, hardTotal: 680
+            },
+            streakDays: authUser.streak || 1,
+            level: authUser.level || 1,
+            currentXP: authUser.currentXP || 0,
+            nextLevelXP: authUser.nextLevelXP || 1000,
+            weakArea: 'Dynamic Programming',
+            recommendedTopic: 'Practice array and dynamic programming challenges.',
+            skillBreakdown: {
+              'Arrays': 50, 'Strings': 40, 'Trees': 30, 'Graphs': 20, 'Dynamic Programming': 10, 'SQL': 40, 'Algorithms': 45, 'Binary Search': 35, 'Stack': 40, 'Hash Table': 50, 'Math': 30, 'Heap': 25
+            },
+            achievements: [
+              { id: 'first-sub', title: 'First Steps', description: 'Joined NimoCode AI platform.', icon: '🚀', unlocked: true }
+            ],
+            submissionHeatmap: authUser.submissionHeatmap || {}
+          };
+
+          setUser(profile);
+          if (authUser.role === 'admin' || authUser.username.toLowerCase() === 'admin') {
+            setIsAdmin(true);
+            setCookie('nimocode_admin_auth', 'true', 30);
+          }
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('Backend login network issue, attempting local fallback:', err);
+    }
+
+    // 2. Local database fallback
+    const localAuthUser = db.authenticateUser(trimmedId, passwordInput);
+    if (localAuthUser) {
       const profile: UserProfile = {
-        username: authUser.username,
-        name: authUser.name,
-        email: authUser.email,
-        avatar: authUser.avatar,
-        title: authUser.badge || 'Competitive Coder',
-        rating: authUser.rating,
-        globalRank: authUser.rank,
-        totalSolved: authUser.solvedCount,
-        solvedProblemIds: authUser.solvedProblemIds || [],
-        solvedStats: authUser.solvedStats || {
+        username: localAuthUser.username,
+        name: localAuthUser.name,
+        email: localAuthUser.email,
+        avatar: localAuthUser.avatar,
+        title: localAuthUser.badge || 'Competitive Coder',
+        rating: localAuthUser.rating,
+        globalRank: localAuthUser.rank,
+        totalSolved: localAuthUser.solvedCount,
+        solvedProblemIds: localAuthUser.solvedProblemIds || [],
+        solvedStats: localAuthUser.solvedStats || {
           easy: 0, easyTotal: 820, medium: 0, mediumTotal: 1450, hard: 0, hardTotal: 680
         },
-        streakDays: authUser.streak,
-        level: authUser.level || 1,
-        currentXP: authUser.currentXP || 0,
-        nextLevelXP: authUser.nextLevelXP || 1000,
+        streakDays: localAuthUser.streak,
+        level: localAuthUser.level || 1,
+        currentXP: localAuthUser.currentXP || 0,
+        nextLevelXP: localAuthUser.nextLevelXP || 1000,
         weakArea: 'Dynamic Programming',
         recommendedTopic: 'Practice array and dynamic programming challenges.',
         skillBreakdown: {
@@ -84,11 +146,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         achievements: [
           { id: 'first-sub', title: 'First Steps', description: 'Joined NimoCode AI platform.', icon: '🚀', unlocked: true }
         ],
-        submissionHeatmap: authUser.submissionHeatmap || {}
+        submissionHeatmap: localAuthUser.submissionHeatmap || {}
       };
 
       setUser(profile);
-      if (authUser.role === 'admin') {
+      if (localAuthUser.role === 'admin' || localAuthUser.username.toLowerCase() === 'admin') {
         setIsAdmin(true);
         setCookie('nimocode_admin_auth', 'true', 30);
       }
@@ -96,6 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     return false;
   };
+
 
   const signup = (name: string, email: string, username: string, passwordInput: string): boolean => {
     const createdUser = db.addUser({ name, email, username, password: passwordInput });

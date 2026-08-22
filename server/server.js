@@ -71,9 +71,54 @@ const initMongoDriver = async () => {
           await mongoDb.createCollection('users');
           console.log('🍃 Created "users" collection in MongoDB Atlas!');
         }
+
+        // Ensure contests collection exists and has initial live contests
+        const contestCol = mongoDb.collection('contests');
+        const count = await contestCol.countDocuments();
+        if (count === 0) {
+          await contestCol.insertMany([
+            {
+              id: 'nimocode-grand-prix-2026',
+              _id: 'nimocode-grand-prix-2026',
+              title: 'NimoCode Global Grand Prix 2026',
+              subtitle: 'Official Championship • 120 Mins • $2,500 Cash Prize Pool',
+              startTime: 'Starts Today at 20:00 UTC',
+              durationMinutes: 120,
+              participantsCount: 428,
+              status: 'LIVE',
+              prizes: ['$1,500 Cash Prize', '$1,000 Swag & Hardware'],
+              problems: [
+                { id: '1', code: 'A', title: 'Two Sum', points: 500, difficulty: 'Easy', solvedCount: 382 },
+                { id: '2', code: 'B', title: 'Add Two Numbers', points: 1000, difficulty: 'Medium', solvedCount: 245 },
+                { id: '3', code: 'C', title: 'Longest Substring Without Repeating Characters', points: 1500, difficulty: 'Medium', solvedCount: 160 },
+                { id: '4', code: 'D', title: 'Median of Two Sorted Arrays', points: 2000, difficulty: 'Hard', solvedCount: 54 }
+              ],
+              createdAt: new Date().toISOString()
+            },
+            {
+              id: 'weekly-algo-sprint',
+              _id: 'weekly-algo-sprint',
+              title: 'Weekly Algorithm Sprint #48',
+              subtitle: 'Speed Run Challenge • 90 Mins • Global ELO Stakes',
+              startTime: 'Starts Tomorrow at 18:00 UTC',
+              durationMinutes: 90,
+              participantsCount: 196,
+              status: 'UPCOMING',
+              prizes: ['$500 Amazon Gift Card', 'Pro Badge'],
+              problems: [
+                { id: '5', code: 'A', title: 'Longest Palindromic Substring', points: 500, difficulty: 'Medium', solvedCount: 0 },
+                { id: '11', code: 'B', title: 'Container With Most Water', points: 1000, difficulty: 'Medium', solvedCount: 0 },
+                { id: '15', code: 'C', title: '3Sum', points: 1500, difficulty: 'Medium', solvedCount: 0 }
+              ],
+              createdAt: new Date().toISOString()
+            }
+          ]);
+          console.log('🍃 Seeded initial live contests to MongoDB Atlas!');
+        }
       } catch (e) {
         console.log('Mongo collection check:', e.message);
       }
+
 
       return true;
     } catch (err) {
@@ -600,27 +645,36 @@ app.post('/api/auth/signup', async (req, res) => {
 
 app.post('/api/auth/login', async (req, res) => {
   const { loginId, password } = req.body;
-  const target = (loginId || '').trim().toLowerCase();
+  const target = (loginId || '').trim();
+  const targetLower = target.toLowerCase();
+  const passwordTrim = (password || '').trim();
 
   if (isConnected && mongoDb) {
     try {
       const usersCol = mongoDb.collection('users');
       const user = await usersCol.findOne({
-        $or: [{ username: target }, { email: target }]
+        $or: [
+          { username: { $regex: `^${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } },
+          { email: { $regex: `^${targetLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } }
+        ]
       });
-      if (user && user.password === password) {
+      if (user && (user.password === password || user.password === passwordTrim)) {
         return res.json(user);
       }
     } catch {}
   }
 
   const users = getCollection('users');
-  const user = users.find(u => u.username === target || u.email === target);
-  if (user && user.password === password) {
+  const user = users.find(u =>
+    (u.username && u.username.toLowerCase() === targetLower) ||
+    (u.email && u.email.toLowerCase() === targetLower)
+  );
+  if (user && (user.password === password || user.password === passwordTrim)) {
     return res.json(user);
   }
   res.status(401).json({ error: 'Invalid credentials' });
 });
+
 
 app.post('/api/auth/admin-login', async (req, res) => {
   const { loginId, password } = req.body;
@@ -864,15 +918,13 @@ app.post('/api/auth/google', async (req, res) => {
   const { token } = req.body;
   if (!token) return res.status(400).json({ error: 'Google token required.' });
 
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  if (!clientId) {
-    return res.status(500).json({ error: 'Google OAuth not configured on server.' });
-  }
+  const clientId = (process.env.GOOGLE_CLIENT_ID || '504908920632-6i9ppi6qp5hqkbm11ia8r8kb0tvfhvge.apps.googleusercontent.com').trim();
 
   try {
     const ticket = await googleClient.verifyIdToken({ idToken: token, audience: clientId });
     const payload = ticket.getPayload();
     if (!payload) return res.status(401).json({ error: 'Invalid Google token.' });
+
 
     const { email, name, picture, sub: googleId } = payload;
     const username = (email.split('@')[0] + '_g').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();

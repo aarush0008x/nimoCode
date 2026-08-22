@@ -13,7 +13,9 @@ export const LoginPage: React.FC = () => {
   const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     const wafCheck = waf.inspectInput(loginId, '/api/auth/login');
@@ -21,13 +23,16 @@ export const LoginPage: React.FC = () => {
       setErrorMsg(`🛡️ Blocked by WAF: Invalid payload character.`);
       return;
     }
-    const success = login(loginId, password);
+    setIsSubmitting(true);
+    const success = await login(loginId, password);
+    setIsSubmitting(false);
     if (success) {
       navigate('/problems');
     } else {
       setErrorMsg('Invalid username/email or password. If you do not have an account, please Sign Up.');
     }
   };
+
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     setIsGoogleLoading(true);
@@ -75,7 +80,7 @@ export const LoginPage: React.FC = () => {
                 size="large"
                 width="368"
                 text="signin_with"
-                shape="rectangular"
+                shape="circle"
               />
             )}
           </div>
@@ -90,7 +95,7 @@ export const LoginPage: React.FC = () => {
           <div className="space-y-1">
             <label className="text-neutral-800 dark:text-neutral-200">Username or Email</label>
             <input type="text" required value={loginId} onChange={e => setLoginId(e.target.value)}
-              placeholder="e.g. tourist or email@domain.com"
+              placeholder="e.g. username@domain.com"
               className="w-full px-4 py-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-neutral-400 font-medium" />
           </div>
           <div className="space-y-1">
@@ -102,11 +107,15 @@ export const LoginPage: React.FC = () => {
               placeholder="••••••••••••"
               className="w-full px-4 py-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-neutral-400 font-medium" />
           </div>
-          <button type="submit"
-            className="w-full py-3 rounded-xl bg-neutral-950 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-950 font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5">
-            <span>Sign In</span>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full py-3 rounded-xl bg-neutral-950 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-950 font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            <span>{isSubmitting ? 'Signing In...' : 'Sign In'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
+
         </form>
 
         <p className="text-center text-xs text-neutral-500 pt-2">

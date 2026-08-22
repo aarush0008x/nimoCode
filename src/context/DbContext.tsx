@@ -99,13 +99,9 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         if (res.ok) {
           const apiContests = await res.json();
           if (Array.isArray(apiContests) && apiContests.length > 0) {
-            const local = db.getContests();
-            const map = new Map();
-            local.forEach(c => map.set(c.id, c));
-            apiContests.forEach(c => map.set(c.id, c));
-            const merged = Array.from(map.values());
-            setContests(merged);
-            localStorage.setItem('nimocode_contests_v1', JSON.stringify(merged));
+            // MongoDB Atlas is the real-time source of truth
+            setContests(apiContests);
+            localStorage.setItem('nimocode_contests_v1', JSON.stringify(apiContests));
           }
         }
       } catch {}
@@ -134,14 +130,26 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 
   const handleAddContest = (contestData: Omit<Contest, 'id' | 'participantsCount'>): Contest => {
     const created = db.addContest(contestData);
-    // Remote sync
+    // Remote sync to real MongoDB Atlas backend
     fetch(getApiUrl('/contests'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(created)
+    }).then(async (res) => {
+      if (res.ok) {
+        const refreshed = await fetch(getApiUrl('/contests'));
+        if (refreshed.ok) {
+          const liveList = await refreshed.json();
+          if (Array.isArray(liveList) && liveList.length > 0) {
+            setContests(liveList);
+            localStorage.setItem('nimocode_contests_v1', JSON.stringify(liveList));
+          }
+        }
+      }
     }).catch(() => {});
     return created;
   };
+
 
   return (
     <DbContext.Provider

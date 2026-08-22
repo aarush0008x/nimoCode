@@ -136,13 +136,13 @@ export const MockInterviewPage: React.FC = () => {
       <div className="p-8 rounded-3xl bg-neutral-950 text-white border border-neutral-800 space-y-4 shadow-2xl relative overflow-hidden">
         <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 font-mono uppercase tracking-wider">
           <Sparkles className="w-4 h-4" />
-          POWERED BY NVIDIA AI NEMOTRON ENGINE
+          POWERED BY NIMO AI NEMOTRON ENGINE
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-          NVIDIA AI Technical Mock Interview
+          NIMO AI Technical Mock Interview
         </h1>
         <p className="text-xs text-neutral-400 max-w-2xl leading-relaxed">
-          Simulate a real 45-minute FAANG technical coding interview powered by NVIDIA AI LLM. Select your preferred programming language to receive personalized questions, live code feedback, and a candidate evaluation scorecard.
+          Simulate a real 45-minute FAANG technical coding interview powered by NIMO AI LLM. Select your preferred programming language to receive personalized questions, live code feedback, and a candidate evaluation scorecard.
         </p>
 
         {!interviewStarted && (
@@ -191,7 +191,7 @@ export const MockInterviewPage: React.FC = () => {
                   Alex (FAANG Staff Engineer) • Language: {languages.find(l => l.id === selectedLanguage)?.name}
                 </span>
               </div>
-              <span className="text-amber-500 font-bold uppercase">NVIDIA AI ACTIVE</span>
+              <span className="text-amber-500 font-bold uppercase">NIMO AI ACTIVE</span>
             </div>
 
             {/* Chat Transcript */}
@@ -225,7 +225,7 @@ export const MockInterviewPage: React.FC = () => {
                   </div>
                   <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-amber-500 font-mono flex items-center gap-2">
                     <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                    <span>NVIDIA AI is evaluating your response...</span>
+                    <span>NIMO AI is evaluating your response...</span>
                   </div>
                 </div>
               )}
@@ -269,7 +269,7 @@ export const MockInterviewPage: React.FC = () => {
             <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-4 shadow-xl">
               <div className="flex items-center gap-2 font-bold text-sm text-neutral-950 dark:text-white">
                 <Award className="w-5 h-5 text-amber-500" />
-                <span>NVIDIA AI Candidate Evaluation</span>
+                <span>NIMO AI Candidate Evaluation</span>
               </div>
 
               <div className="space-y-3 font-mono text-xs">
@@ -292,7 +292,7 @@ export const MockInterviewPage: React.FC = () => {
               {currentPhase === 'feedback' && (
                 <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-bold text-xs space-y-1 text-center">
                   <CheckCircle2 className="w-6 h-6 mx-auto" />
-                  <div>NVIDIA AI RECOMMENDATION: STRONG HIRE</div>
+                  <div>NIMO AI RECOMMENDATION: STRONG HIRE</div>
                   <div className="text-[10px] text-neutral-400 font-normal">Demonstrated L5 Senior Engineer mastery in {languages.find(l => l.id === selectedLanguage)?.name}.</div>
                 </div>
               )}

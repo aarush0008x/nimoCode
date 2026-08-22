@@ -1,6 +1,7 @@
 import { generateLeetCode2000Problems } from '../data/leetcodeDataset';
 import { MOCK_CONTESTS } from '../data/contests';
 import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission } from '../types';
+import { getApiUrl } from '../utils/apiConfig';
 
 const LEETCODE_2000_PROBLEMS = generateLeetCode2000Problems();
 
@@ -239,7 +240,7 @@ export const db = {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
 
     // Async sync to real MongoDB Backend
-    fetch(`${API_BASE_URL}/auth/signup`, {
+    fetch(getApiUrl('/auth/signup'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(userData)
@@ -252,9 +253,13 @@ export const db = {
   authenticateUser: (loginId: string, passwordInput: string): DbUserRecord | null => {
     const users = db.getUsers();
     const target = loginId.trim().toLowerCase();
-    const user = users.find(u => u.username === target || u.email === target);
+    const pass = passwordInput.trim();
+    const user = users.find(u =>
+      (u.username && u.username.toLowerCase() === target) ||
+      (u.email && u.email.toLowerCase() === target)
+    );
 
-    if (user && (!user.password || user.password === passwordInput)) {
+    if (user && (!user.password || user.password === passwordInput || user.password === pass)) {
       return user;
     }
     return null;
@@ -269,11 +274,12 @@ export const db = {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
 
     // Sync to MongoDB Express API
-    fetch(`${API_BASE_URL}/users/${username}/progress`, {
+    fetch(getApiUrl(`/users/${encodeURIComponent(username)}/progress`), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
     }).catch(() => {});
+
 
     window.dispatchEvent(new Event('nimocode_db_update'));
     return users[index];

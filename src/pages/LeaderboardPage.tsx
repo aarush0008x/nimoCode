@@ -40,7 +40,7 @@ export const LeaderboardPage: React.FC = () => {
         {/* Realtime Live Sync Badge */}
         <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-mono font-bold">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Live MongoDB Atlas Sync • {users.length} Registered Coder{users.length !== 1 ? 's' : ''}</span>
+          <span>Live Sync • {users.length} Registered Coder{users.length !== 1 ? 's' : ''}</span>
           <button
             onClick={handleManualRefresh}
             title="Refresh Leaderboard"

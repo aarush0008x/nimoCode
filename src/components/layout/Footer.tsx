@@ -46,7 +46,7 @@ export const Footer: React.FC = () => {
             <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1.5 font-mono text-[11px]">
               <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Realtime DB Active</span>
+                <span>NIMO AI ACTIVE</span>
               </div>
               <div className="text-neutral-500">Latency: 12ms</div>
               <div className="text-neutral-500 font-bold">WAF Shield Engaged</div>
