@@ -1,29 +1,51 @@
 import type { UserProfile } from '../types';
 
 /**
- * Preloads an image safely with CORS handling and fallback.
+ * Safely converts an image URL or SVG to a clean HTMLImageElement without CORS tainting.
  */
-const preloadImage = (src: string): Promise<HTMLImageElement | null> => {
-  return new Promise((resolve) => {
-    if (!src) return resolve(null);
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => {
-      // Retry without crossOrigin if external SVG CORS restriction
-      const fallbackImg = new Image();
-      fallbackImg.onload = () => resolve(fallbackImg);
-      fallbackImg.onerror = () => resolve(null);
-      fallbackImg.src = src;
-    };
-    img.src = src;
-  });
+const preloadSafeAvatar = async (url: string): Promise<HTMLImageElement | null> => {
+  if (!url) return null;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Fetch failed');
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(img);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(null);
+      };
+      img.src = objectUrl;
+    });
+  } catch {
+    // Direct Image fallback
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
 };
 
 /**
- * Draws a 5-pointed star on the canvas.
+ * Draws a 5-pointed star on the canvas using pure 2D vectors.
  */
-const drawStar = (ctx: CanvasRenderingContext2D, cx: number, cy: number, spikes: number, outerRadius: number, innerRadius: number) => {
+const drawStar = (
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  spikes: number,
+  outerRadius: number,
+  innerRadius: number
+) => {
   let rot = (Math.PI / 2) * 3;
   let x = cx;
   let y = cy;
@@ -48,7 +70,7 @@ const drawStar = (ctx: CanvasRenderingContext2D, cx: number, cy: number, spikes:
 
 /**
  * Generates and downloads a high-resolution 1600x1000 PNG Certificate of Competitive Excellence.
- * Includes user avatar image, official NimoCode branding, golden seal, and cryptographic verification matrix.
+ * 100% Vector & Clean Asset Rendering with Zero Missing Glyphs.
  */
 export const downloadCertificateAsImage = async (user: UserProfile) => {
   const canvas = document.createElement('canvas');
@@ -57,20 +79,22 @@ export const downloadCertificateAsImage = async (user: UserProfile) => {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  // Preload user avatar
-  const avatarUrl = user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username || 'coder')}`;
-  const avatarImg = await preloadImage(avatarUrl);
+  // Preload avatar safely
+  const avatarUrl =
+    user.avatar ||
+    `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username || 'coder')}`;
+  const avatarImg = await preloadSafeAvatar(avatarUrl);
 
-  // 1. Dark Luxurious Background Gradient
+  // 1. Dark Executive Background Gradient
   const bgGrad = ctx.createLinearGradient(0, 0, 1600, 1000);
   bgGrad.addColorStop(0, '#09090b');
-  bgGrad.addColorStop(0.3, '#111116');
-  bgGrad.addColorStop(0.7, '#18181f');
+  bgGrad.addColorStop(0.3, '#121217');
+  bgGrad.addColorStop(0.7, '#181820');
   bgGrad.addColorStop(1, '#09090b');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, 1600, 1000);
 
-  // Background subtle tech grid
+  // Subtle Matrix Mesh Grid
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
   ctx.lineWidth = 1;
   for (let x = 0; x < 1600; x += 40) {
@@ -86,16 +110,16 @@ export const downloadCertificateAsImage = async (user: UserProfile) => {
     ctx.stroke();
   }
 
-  // 2. Multi-layered Gold Border Frame
+  // 2. Triple Luxury Gold Border
   ctx.strokeStyle = '#d97706';
   ctx.lineWidth = 6;
-  ctx.strokeRect(35, 35, 1530, 930);
+  ctx.strokeRect(36, 36, 1528, 928);
 
   ctx.strokeStyle = '#f59e0b';
   ctx.lineWidth = 2;
   ctx.strokeRect(48, 48, 1504, 904);
 
-  ctx.strokeStyle = 'rgba(251, 191, 36, 0.3)';
+  ctx.strokeStyle = 'rgba(251, 191, 36, 0.25)';
   ctx.lineWidth = 1;
   ctx.strokeRect(56, 56, 1488, 888);
 
@@ -108,12 +132,11 @@ export const downloadCertificateAsImage = async (user: UserProfile) => {
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(45, 0);
+    ctx.lineTo(44, 0);
     ctx.moveTo(0, 0);
-    ctx.lineTo(0, 45);
+    ctx.lineTo(0, 44);
     ctx.stroke();
 
-    // Corner dot
     ctx.fillStyle = '#fbbf24';
     ctx.beginPath();
     ctx.arc(8, 8, 3, 0, Math.PI * 2);
@@ -129,48 +152,47 @@ export const downloadCertificateAsImage = async (user: UserProfile) => {
   // 3. Top Header Bar & Logo
   ctx.textAlign = 'center';
 
-  // NimoCode Brand Logo Badge
   ctx.save();
   ctx.fillStyle = 'rgba(245, 158, 11, 0.1)';
-  ctx.strokeStyle = 'rgba(245, 158, 11, 0.3)';
+  ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.roundRect(620, 75, 360, 40, 20);
+  ctx.roundRect(600, 75, 400, 38, 19);
   ctx.fill();
   ctx.stroke();
 
   ctx.fillStyle = '#fbbf24';
-  ctx.font = 'bold 14px "Courier New", monospace';
-  ctx.fillText('NIMOCODE AI • OFFICIAL VERIFIED CREDENTIAL', 800, 100);
+  ctx.font = 'bold 13px "Courier New", monospace';
+  ctx.fillText('NIMOCODE AI • OFFICIAL VERIFIED CREDENTIAL', 800, 99);
   ctx.restore();
 
   // Certificate ID
   const certId = `CERTIFICATE ID: NC-${user.username.toUpperCase()}-${new Date().getFullYear()}-FAANG`;
   ctx.fillStyle = '#71717a';
   ctx.font = 'bold 12px "Courier New", monospace';
-  ctx.fillText(certId, 800, 135);
+  ctx.fillText(certId, 800, 134);
 
-  // 4. Center Gold Seal with 5-Pointed Star & Ribbons
+  // 4. Center Gold Ribbon Seal with 5-Pointed Star
   ctx.save();
   // Ribbon tails
   ctx.fillStyle = '#b45309';
   ctx.beginPath();
-  ctx.moveTo(760, 240);
-  ctx.lineTo(730, 310);
-  ctx.lineTo(765, 290);
-  ctx.lineTo(775, 250);
+  ctx.moveTo(760, 235);
+  ctx.lineTo(730, 305);
+  ctx.lineTo(765, 285);
+  ctx.lineTo(775, 245);
   ctx.closePath();
   ctx.fill();
 
   ctx.beginPath();
-  ctx.moveTo(840, 240);
-  ctx.lineTo(870, 310);
-  ctx.lineTo(835, 290);
-  ctx.lineTo(825, 250);
+  ctx.moveTo(840, 235);
+  ctx.lineTo(870, 305);
+  ctx.lineTo(835, 285);
+  ctx.lineTo(825, 245);
   ctx.closePath();
   ctx.fill();
 
-  // Seal circle outer glow
+  // Outer gold gradient seal circle
   ctx.beginPath();
   ctx.arc(800, 215, 52, 0, Math.PI * 2);
   const sealGrad = ctx.createLinearGradient(748, 163, 852, 267);
@@ -183,7 +205,7 @@ export const downloadCertificateAsImage = async (user: UserProfile) => {
   ctx.strokeStyle = '#fef3c7';
   ctx.stroke();
 
-  // Inner ring
+  // Inner black circular core
   ctx.beginPath();
   ctx.arc(800, 215, 42, 0, Math.PI * 2);
   ctx.fillStyle = '#18181b';
@@ -192,29 +214,38 @@ export const downloadCertificateAsImage = async (user: UserProfile) => {
   ctx.strokeStyle = '#f59e0b';
   ctx.stroke();
 
-  // 5-Pointed Gold Star in seal
+  // Pure 2D Vector Star
   ctx.fillStyle = '#fbbf24';
   drawStar(ctx, 800, 215, 5, 24, 11);
   ctx.fill();
   ctx.restore();
 
-  // 5. User Avatar Image Circle Badge (Top Right)
+  // 5. User Avatar Badge (Top Right)
+  ctx.save();
   if (avatarImg) {
-    ctx.save();
     ctx.beginPath();
     ctx.arc(1410, 140, 48, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
     ctx.drawImage(avatarImg, 1362, 92, 96, 96);
-    ctx.restore();
-
-    // Outer avatar gold ring
+  } else {
+    // Elegant Monogram Fallback
     ctx.beginPath();
-    ctx.arc(1410, 140, 50, 0, Math.PI * 2);
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#fbbf24';
-    ctx.stroke();
+    ctx.arc(1410, 140, 48, 0, Math.PI * 2);
+    ctx.fillStyle = '#27272a';
+    ctx.fill();
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 36px Georgia, serif';
+    ctx.fillText((user.name || user.username).charAt(0).toUpperCase(), 1410, 153);
   }
+  ctx.restore();
+
+  // Avatar Gold Ring Border
+  ctx.beginPath();
+  ctx.arc(1410, 140, 50, 0, Math.PI * 2);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#fbbf24';
+  ctx.stroke();
 
   // 6. Main Certificate Title
   ctx.fillStyle = '#ffffff';
@@ -233,7 +264,7 @@ export const downloadCertificateAsImage = async (user: UserProfile) => {
   ctx.fillText(displayName, 800, 465);
 
   // Username & Campus / College Tag
-  const campusText = user.college ? `@${user.username}  •  🎓 ${user.college}` : `@${user.username}`;
+  const campusText = user.college ? `@${user.username}  •  ${user.college}` : `@${user.username}`;
   ctx.fillStyle = '#e4e4e7';
   ctx.font = 'bold 19px "Courier New", monospace';
   ctx.fillText(campusText, 800, 510);
@@ -281,7 +312,6 @@ export const downloadCertificateAsImage = async (user: UserProfile) => {
   ctx.fill();
   ctx.stroke();
 
-  // Draw simulated QR matrix blocks
   ctx.fillStyle = '#fbbf24';
   const qrPixels = [
     [1, 1, 1, 0, 1, 1, 1],
@@ -334,7 +364,7 @@ export const downloadCertificateAsImage = async (user: UserProfile) => {
   ctx.fillText('AUTHENTICATED BY NIMOCODE AI EVALUATION DESK', 800, 825);
   ctx.fillStyle = '#71717a';
   ctx.font = '12px sans-serif';
-  ctx.fillText('Direct Verifiable Record • Compatible with LinkedIn & FAANG Portfolios', 800, 850);
+  ctx.fillText('Direct Verifiable Record • Compatible with LinkedIn & Portfolios', 800, 850);
 
   // Right: Signature
   ctx.textAlign = 'right';
@@ -346,10 +376,14 @@ export const downloadCertificateAsImage = async (user: UserProfile) => {
   ctx.fillText('OFFICIAL CERTIFICATION COMMITTEE', 1460, 850);
 
   // 13. Trigger Direct PNG File Download
-  const link = document.createElement('a');
-  link.download = `NimoCode_Certificate_${user.username.toLowerCase()}.png`;
-  link.href = canvas.toDataURL('image/png', 1.0);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  try {
+    const link = document.createElement('a');
+    link.download = `NimoCode_Certificate_${user.username.toLowerCase()}.png`;
+    link.href = canvas.toDataURL('image/png', 1.0);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error('Error generating certificate PNG:', err);
+  }
 };
