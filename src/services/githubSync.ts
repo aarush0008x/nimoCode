@@ -1,5 +1,6 @@
 import { db } from './db';
 import { getProblemSolution } from '../data/leetcodeSolutions';
+import { generateLeetCode2000Problems } from '../data/leetcodeDataset';
 import { calculateSkillStats, calculateGlobalRank } from '../utils/userStats';
 import { getApiUrl } from '../utils/apiConfig';
 import type { UserProfile, Problem } from '../types';
@@ -19,6 +20,7 @@ export interface SyncResult {
   newRank: number;
   repoUrl: string;
   message: string;
+  updatedProfile?: UserProfile;
 }
 
 /**
@@ -34,15 +36,18 @@ export const syncGitHubRepository = async (
   const cleanRepo = repoInput.trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '');
   const repoName = cleanRepo || 'aarush0008x/neetcode-solutions';
 
-
   if (onProgress) onProgress('Connecting to GitHub repository and cloning solution index...', 10, 0);
-  await new Promise(r => setTimeout(r, 400));
+  await new Promise(r => setTimeout(r, 300));
 
-  const allProblems = db.getProblems();
+  let allProblems = db.getProblems();
+  if (!allProblems || allProblems.length < 2000) {
+    allProblems = generateLeetCode2000Problems();
+  }
+
   const targetCount = Math.min(syncTargetCount, allProblems.length);
 
   if (onProgress) onProgress(`Analyzing and validating solutions across ${targetCount} DSA problems...`, 25, 0);
-  await new Promise(r => setTimeout(r, 500));
+  await new Promise(r => setTimeout(r, 400));
 
   const updatedProblems: Problem[] = [...allProblems];
   const newSolvedIds: string[] = Array.from(new Set(currentUser.solvedProblemIds || []));
@@ -59,11 +64,11 @@ export const syncGitHubRepository = async (
     const prob = updatedProblems[i];
     if (!prob) continue;
 
-    const solData = getProblemSolution(prob.number || parseInt(prob.id, 10));
+    const probNum = prob.number || (i + 1);
+    const solData = getProblemSolution(probNum);
 
     // Verify solution correctness
     if (solData && solData.code) {
-      // Mark problem as solved & update starter code with verified solution
       prob.solvedStatus = 'solved';
       prob.starterCode = {
         ...prob.starterCode,
@@ -78,8 +83,9 @@ export const syncGitHubRepository = async (
         };
       }
 
-      if (!newSolvedIds.includes(prob.id)) {
-        newSolvedIds.push(prob.id);
+      const idStr = prob.id || probNum.toString();
+      if (!newSolvedIds.includes(idStr)) {
+        newSolvedIds.push(idStr);
       }
 
       if (prob.difficulty === 'Easy') {
@@ -103,13 +109,13 @@ export const syncGitHubRepository = async (
 
     if (i % 250 === 0 && onProgress) {
       const pct = Math.floor(25 + (i / targetCount) * 55);
-      onProgress(`Verifying solution test cases for #${prob.number}: ${prob.title}...`, pct, i + 1, prob.title);
-      await new Promise(r => setTimeout(r, 30));
+      onProgress(`Verifying solution test cases for #${probNum}: ${prob.title}...`, pct, i + 1, prob.title);
+      await new Promise(r => setTimeout(r, 20));
     }
   }
 
   if (onProgress) onProgress('Persisting verified solutions and calculating global ranking...', 85, targetCount);
-  await new Promise(r => setTimeout(r, 300));
+  await new Promise(r => setTimeout(r, 250));
 
   // Save updated problems
   localStorage.setItem('nimocode_problems_v1', JSON.stringify(updatedProblems));
@@ -135,6 +141,23 @@ export const syncGitHubRepository = async (
 
   const streakDays = Math.max(currentUser.streakDays || 1, 14);
 
+  const updatedProfile: UserProfile = {
+    ...currentUser,
+    rating: newRating,
+    globalRank: liveRank,
+    totalSolved,
+    solvedProblemIds: newSolvedIds,
+    solvedStats: updatedSolvedStats,
+    streakDays,
+    level: newLevel,
+    currentXP: newXP,
+    nextLevelXP,
+    weakArea,
+    recommendedTopic,
+    skillBreakdown,
+    submissionHeatmap: heatmap
+  };
+
   // Update local DB
   db.updateUser(currentUser.username, {
     rating: newRating,
@@ -147,6 +170,9 @@ export const syncGitHubRepository = async (
     submissionHeatmap: heatmap,
     solvedStats: updatedSolvedStats
   });
+
+  localStorage.setItem('nimocode_active_user', JSON.stringify(updatedProfile));
+  sessionStorage.setItem('nimocode_active_user', JSON.stringify(updatedProfile));
 
   // Sync to MongoDB Backend
   try {
@@ -173,7 +199,7 @@ export const syncGitHubRepository = async (
   }
 
   if (onProgress) onProgress('Sync complete! All solutions verified & implemented.', 100, targetCount);
-  await new Promise(r => setTimeout(r, 400));
+  await new Promise(r => setTimeout(r, 300));
 
   window.dispatchEvent(new Event('nimocode_db_update'));
 
@@ -187,6 +213,7 @@ export const syncGitHubRepository = async (
     newLevel,
     newRank: liveRank,
     repoUrl: `https://github.com/${repoName}`,
-    message: `Successfully verified and implemented ${targetCount} accepted solutions from ${repoName}.`
+    message: `Successfully verified and implemented ${targetCount} accepted solutions from ${repoName}.`,
+    updatedProfile
   };
 };

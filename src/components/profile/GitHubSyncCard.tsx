@@ -4,14 +4,16 @@ import { Link } from 'react-router-dom';
 
 import { GitHubIcon } from '../common/SocialIcons';
 import { useAuth } from '../../context/AuthContext';
-import { syncGitHubRepository, type SyncResult } from '../../services/githubSync';
+import type { SyncResult } from '../../services/githubSync';
 import confetti from 'canvas-confetti';
 
+
 export const GitHubSyncCard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, syncGitHubSolutions } = useAuth();
   const [repoName, setRepoName] = useState('aarush0008x/neetcode-solutions');
   const [syncTarget, setSyncTarget] = useState<number>(2000);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [progressState, setProgressState] = useState<{
     stage: string;
     percent: number;
@@ -21,15 +23,20 @@ export const GitHubSyncCard: React.FC = () => {
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
   const handleSyncNow = async () => {
-    if (!user || isSyncing) return;
-
-    setIsSyncing(true);
+    if (isSyncing) return;
+    setSyncError(null);
     setSyncResult(null);
 
+    if (!user) {
+      setSyncError('Please log in to your NimoCode account before syncing solutions.');
+      return;
+    }
+
+    setIsSyncing(true);
+
     try {
-      const result = await syncGitHubRepository(
+      const result = await syncGitHubSolutions(
         repoName,
-        user,
         syncTarget,
         (stage, percent, solvedCount, currentProblemTitle) => {
           setProgressState({ stage, percent, solvedCount, currentProblemTitle });
@@ -42,13 +49,15 @@ export const GitHubSyncCard: React.FC = () => {
         spread: 90,
         origin: { y: 0.6 }
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('GitHub Sync failed:', err);
+      setSyncError(err?.message || 'Failed to sync solutions from GitHub repository.');
     } finally {
       setIsSyncing(false);
       setProgressState(null);
     }
   };
+
 
   return (
     <div className="p-6 sm:p-7 rounded-3xl bg-neutral-950 text-white border border-neutral-800 space-y-6 shadow-2xl relative overflow-hidden text-left">
@@ -176,7 +185,23 @@ export const GitHubSyncCard: React.FC = () => {
         </div>
       </div>
 
+      {/* Error Alert */}
+      {syncError && (
+        <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium flex items-center justify-between animate-fade-in">
+          <span>⚠️ {syncError}</span>
+          {!user && (
+            <Link
+              to="/login"
+              className="px-3 py-1 rounded-xl bg-rose-500 text-white font-extrabold text-[10px]"
+            >
+              Sign In Now
+            </Link>
+          )}
+        </div>
+      )}
+
       {/* Real-time animated progress bar */}
+
       {isSyncing && progressState && (
         <div className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-2.5 animate-fade-in">
           <div className="flex items-center justify-between text-xs font-bold font-mono">

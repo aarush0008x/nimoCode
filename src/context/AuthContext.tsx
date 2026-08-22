@@ -4,6 +4,7 @@ import { db } from '../services/db';
 import { setCookie, getCookie, deleteCookie } from '../utils/cookies';
 import { getApiUrl } from '../utils/apiConfig';
 import { calculateSkillStats, calculateGlobalRank } from '../utils/userStats';
+import { syncGitHubRepository, type SyncProgressCallback, type SyncResult } from '../services/githubSync';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -24,7 +25,9 @@ interface AuthContextType {
   }) => Promise<void>;
   addFriend: (targetUsername: string) => Promise<boolean>;
   removeFriend: (targetUsername: string) => Promise<void>;
+  syncGitHubSolutions: (repoInput: string, syncTargetCount?: number, onProgress?: SyncProgressCallback) => Promise<SyncResult>;
 }
+
 
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -558,6 +561,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.dispatchEvent(new Event('nimocode_db_update'));
   };
 
+  const syncGitHubSolutions = async (
+    repoInput: string,
+    syncTargetCount: number = 2000,
+    onProgress?: SyncProgressCallback
+  ): Promise<SyncResult> => {
+    if (!user) {
+      throw new Error('Please sign in to sync your GitHub solutions.');
+    }
+
+    const result = await syncGitHubRepository(repoInput, user, syncTargetCount, onProgress);
+
+    if (result.updatedProfile) {
+      setUser(result.updatedProfile);
+    }
+
+    return result;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -571,13 +592,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         markProblemSolved,
         updateUserProfile,
         addFriend,
-        removeFriend
+        removeFriend,
+        syncGitHubSolutions
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
+
 
 
 export const useAuth = () => {
