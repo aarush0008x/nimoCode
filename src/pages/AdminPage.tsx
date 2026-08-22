@@ -150,8 +150,39 @@ export const AdminPage: React.FC = () => {
   const [showAddContestModal, setShowAddContestModal] = useState(false);
   const [newContestTitle, setNewContestTitle] = useState('');
   const [newContestSubtitle, setNewContestSubtitle] = useState('');
+  const [newContestFromDate, setNewContestFromDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  });
+  const [newContestToDate, setNewContestToDate] = useState(() => {
+    const d = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  });
   const [newContestDuration, setNewContestDuration] = useState(120);
   const [newContestStatus, setNewContestStatus] = useState<'LIVE' | 'UPCOMING' | 'PAST'>('UPCOMING');
+
+  const handleFromDateChange = (val: string) => {
+    setNewContestFromDate(val);
+    if (newContestToDate) {
+      const start = new Date(val).getTime();
+      const end = new Date(newContestToDate).getTime();
+      if (end > start) {
+        setNewContestDuration(Math.round((end - start) / 60000));
+      }
+    }
+  };
+
+  const handleToDateChange = (val: string) => {
+    setNewContestToDate(val);
+    if (newContestFromDate) {
+      const start = new Date(newContestFromDate).getTime();
+      const end = new Date(val).getTime();
+      if (end > start) {
+        setNewContestDuration(Math.round((end - start) / 60000));
+      }
+    }
+  };
+
 
   const handleCreateProblem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,13 +239,19 @@ export const AdminPage: React.FC = () => {
 
   const handleCreateContest = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newContestTitle) return;
+    if (!newContestTitle.trim()) return;
+
+    const startObj = new Date(newContestFromDate);
+    const endObj = new Date(newContestToDate);
+    const diffMins = Math.max(15, Math.round((endObj.getTime() - startObj.getTime()) / 60000)) || newContestDuration;
+    const formattedStart = `${startObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${startObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
 
     addContest({
-      title: newContestTitle,
-      subtitle: newContestSubtitle || 'Official NimoCode Competitive Sprint',
-      startTime: 'Starts Today at 20:00 UTC',
-      durationMinutes: newContestDuration,
+      title: newContestTitle.trim(),
+      subtitle: newContestSubtitle.trim() || 'Official NimoCode Competitive Sprint',
+      startTime: formattedStart,
+      endTime: newContestToDate,
+      durationMinutes: diffMins,
       status: newContestStatus,
       prizes: ['$500 Gift Card', '$250 Swag Pack'],
       problems: [
@@ -224,7 +261,7 @@ export const AdminPage: React.FC = () => {
           title: problems[0]?.title || 'Two Sum',
           difficulty: problems[0]?.difficulty || 'Easy',
           points: 500,
-          solvedCount: 340
+          solvedCount: 0
         },
         {
           id: problems[1]?.id || '2',
@@ -232,7 +269,7 @@ export const AdminPage: React.FC = () => {
           title: problems[1]?.title || 'Reverse Linked List',
           difficulty: problems[1]?.difficulty || 'Easy',
           points: 750,
-          solvedCount: 210
+          solvedCount: 0
         }
       ]
     });
@@ -241,6 +278,7 @@ export const AdminPage: React.FC = () => {
     setNewContestTitle('');
     setNewContestSubtitle('');
   };
+
 
   const confirmDeleteUser = () => {
     if (userToDelete) {
@@ -952,6 +990,34 @@ export const AdminPage: React.FC = () => {
                 />
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-neutral-600 dark:text-neutral-400 flex items-center justify-between">
+                    <span>From Date &amp; Time *</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={newContestFromDate}
+                    onChange={e => handleFromDateChange(e.target.value)}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-mono text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-neutral-600 dark:text-neutral-400 flex items-center justify-between">
+                    <span>To Date &amp; Time *</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={newContestToDate}
+                    onChange={e => handleToDateChange(e.target.value)}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-mono text-xs"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-neutral-600 dark:text-neutral-400">Duration (Minutes)</label>
@@ -959,7 +1025,7 @@ export const AdminPage: React.FC = () => {
                     type="number"
                     value={newContestDuration}
                     onChange={e => setNewContestDuration(Number(e.target.value))}
-                    className="w-full p-2 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
+                    className="w-full mt-1 p-2 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-mono"
                   />
                 </div>
                 <div>
@@ -967,7 +1033,7 @@ export const AdminPage: React.FC = () => {
                   <select
                     value={newContestStatus}
                     onChange={e => setNewContestStatus(e.target.value as any)}
-                    className="w-full p-2 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
+                    className="w-full mt-1 p-2 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
                   >
                     <option value="UPCOMING">Upcoming</option>
                     <option value="LIVE">Live Now</option>
@@ -975,6 +1041,7 @@ export const AdminPage: React.FC = () => {
                   </select>
                 </div>
               </div>
+
 
               <div className="flex justify-end gap-2 pt-2">
                 <button

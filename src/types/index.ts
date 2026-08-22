@@ -96,7 +96,17 @@ export interface Contest {
   registered?: boolean;
   problems: ContestProblem[];
   prizes?: string[];
+  registeredUsers?: Array<{
+    username: string;
+    name: string;
+    avatar: string;
+    score?: number;
+    penaltyMinutes?: number;
+    registeredAt?: string;
+    problemScores?: Record<string, { solved: boolean; timeMs?: number; attempts: number }>;
+  }>;
 }
+
 
 export interface ContestLeaderboardEntry {
   rank: number;

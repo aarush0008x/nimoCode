@@ -813,24 +813,144 @@ app.get('/api/contests', async (req, res) => {
 
 app.post('/api/contests', async (req, res) => {
   const newContest = {
-    _id: `contest-${Date.now()}`,
-    id: `contest-${Date.now()}`,
+    _id: req.body.id || `contest-${Date.now()}`,
+    id: req.body.id || `contest-${Date.now()}`,
     ...req.body,
+    registeredUsers: req.body.registeredUsers || [],
     createdAt: new Date().toISOString()
   };
 
   if (isConnected && mongoDb) {
     try {
-      await mongoDb.collection('contests').insertOne(newContest);
+      await mongoDb.collection('contests').updateOne(
+        { id: newContest.id },
+        { $set: newContest },
+        { upsert: true }
+      );
       return res.status(201).json(newContest);
     } catch {}
   }
 
   const contests = getCollection('contests');
-  contests.unshift(newContest);
+  const existingIdx = contests.findIndex(c => c.id === newContest.id);
+  if (existingIdx >= 0) {
+    contests[existingIdx] = newContest;
+  } else {
+    contests.unshift(newContest);
+  }
   saveCollection('contests', contests);
   res.status(201).json(newContest);
 });
+
+// CONTEST REGISTRATION
+app.put('/api/contests/:id/register', async (req, res) => {
+  const { id } = req.params;
+  const { username, name, avatar } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username required' });
+
+  const registrant = {
+    username,
+    name: name || username,
+    avatar: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`,
+    score: 0,
+    penaltyMinutes: 0,
+    registeredAt: new Date().toISOString(),
+    problemScores: {}
+  };
+
+  if (isConnected && mongoDb) {
+    try {
+      const contestCol = mongoDb.collection('contests');
+      await contestCol.updateOne(
+        { id },
+        {
+          $addToSet: { registeredUsers: registrant },
+          $inc: { participantsCount: 1 }
+        }
+      );
+      const updated = await contestCol.findOne({ id });
+      return res.json(updated);
+    } catch (e) {}
+  }
+
+  const contests = getCollection('contests');
+  const contest = contests.find(c => c.id === id);
+  if (contest) {
+    contest.registeredUsers = contest.registeredUsers || [];
+    if (!contest.registeredUsers.some(u => u.username === username)) {
+      contest.registeredUsers.push(registrant);
+      contest.participantsCount = (contest.participantsCount || 0) + 1;
+    }
+    saveCollection('contests', contests);
+    return res.json(contest);
+  }
+  res.status(404).json({ error: 'Contest not found' });
+});
+
+// CONTEST SCORE UPDATE
+app.put('/api/contests/:id/score', async (req, res) => {
+  const { id } = req.params;
+  const { username, problemCode, points, penaltyMinutes, solved } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username required' });
+
+  if (isConnected && mongoDb) {
+    try {
+      const contestCol = mongoDb.collection('contests');
+      const contest = await contestCol.findOne({ id });
+      if (contest) {
+        let regUsers = contest.registeredUsers || [];
+        let userEntry = regUsers.find(u => u.username === username);
+        if (!userEntry) {
+          userEntry = {
+            username,
+            name: username,
+            avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`,
+            score: 0,
+            penaltyMinutes: 0,
+            problemScores: {}
+          };
+          regUsers.push(userEntry);
+        }
+        userEntry.problemScores = userEntry.problemScores || {};
+        if (solved && (!userEntry.problemScores[problemCode] || !userEntry.problemScores[problemCode].solved)) {
+          userEntry.score = (userEntry.score || 0) + (points || 500);
+          userEntry.penaltyMinutes = (userEntry.penaltyMinutes || 0) + (penaltyMinutes || 5);
+          userEntry.problemScores[problemCode] = { solved: true, timeMs: penaltyMinutes || 5, attempts: 1 };
+        }
+        await contestCol.updateOne({ id }, { $set: { registeredUsers: regUsers } });
+        return res.json(contest);
+      }
+    } catch (e) {}
+  }
+
+  const contests = getCollection('contests');
+  const contest = contests.find(c => c.id === id);
+  if (contest) {
+    contest.registeredUsers = contest.registeredUsers || [];
+    let userEntry = contest.registeredUsers.find(u => u.username === username);
+    if (!userEntry) {
+      userEntry = {
+        username,
+        name: username,
+        avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(username)}`,
+        score: 0,
+        penaltyMinutes: 0,
+        problemScores: {}
+      };
+      contest.registeredUsers.push(userEntry);
+    }
+    userEntry.problemScores = userEntry.problemScores || {};
+    if (solved && (!userEntry.problemScores[problemCode] || !userEntry.problemScores[problemCode].solved)) {
+      userEntry.score = (userEntry.score || 0) + (points || 500);
+      userEntry.penaltyMinutes = (userEntry.penaltyMinutes || 0) + (penaltyMinutes || 5);
+      userEntry.problemScores[problemCode] = { solved: true, timeMs: penaltyMinutes || 5, attempts: 1 };
+    }
+    saveCollection('contests', contests);
+    return res.json(contest);
+  }
+  res.status(404).json({ error: 'Contest not found' });
+});
+
 
 // SUBMISSIONS
 app.get('/api/submissions', async (req, res) => {

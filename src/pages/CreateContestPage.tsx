@@ -26,9 +26,40 @@ export const CreateContestPage: React.FC = () => {
   // General Contest Information
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  });
+  const [toDate, setToDate] = useState(() => {
+    const d = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  });
   const [durationMinutes, setDurationMinutes] = useState(120);
   const [prize1, setPrize1] = useState('$500 Amazon Gift Card');
   const [prize2, setPrize2] = useState('$250 Swag Pack');
+
+  const handleFromDateChange = (val: string) => {
+    setFromDate(val);
+    if (toDate) {
+      const start = new Date(val).getTime();
+      const end = new Date(toDate).getTime();
+      if (end > start) {
+        setDurationMinutes(Math.round((end - start) / 60000));
+      }
+    }
+  };
+
+  const handleToDateChange = (val: string) => {
+    setToDate(val);
+    if (fromDate) {
+      const start = new Date(fromDate).getTime();
+      const end = new Date(val).getTime();
+      if (end > start) {
+        setDurationMinutes(Math.round((end - start) / 60000));
+      }
+    }
+  };
+
 
   // Problems mode & list
   const [activeMode, setActiveMode] = useState<'catalog' | 'custom'>('custom');
@@ -193,11 +224,17 @@ export const CreateContestPage: React.FC = () => {
       return;
     }
 
+    const startObj = new Date(fromDate);
+    const endObj = new Date(toDate);
+    const diffMins = Math.max(15, Math.round((endObj.getTime() - startObj.getTime()) / 60000)) || durationMinutes;
+    const formattedStart = `${startObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${startObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+
     addContest({
       title: title.trim(),
       subtitle: subtitle.trim() || `Organized by @${user.username}`,
-      startTime: 'Starts Today at 20:00 UTC',
-      durationMinutes,
+      startTime: formattedStart,
+      endTime: toDate,
+      durationMinutes: diffMins,
       status: 'UPCOMING',
       prizes: [prize1, prize2].filter(Boolean),
       problems: contestProblems.map(p => ({
@@ -269,6 +306,31 @@ export const CreateContestPage: React.FC = () => {
             </div>
           </div>
 
+          {/* From and To Date Selection */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-neutral-700 dark:text-neutral-300">From Date &amp; Time *</label>
+              <input
+                type="datetime-local"
+                required
+                value={fromDate}
+                onChange={e => handleFromDateChange(e.target.value)}
+                className="w-full mt-1.5 p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-neutral-700 dark:text-neutral-300">To Date &amp; Time *</label>
+              <input
+                type="datetime-local"
+                required
+                value={toDate}
+                onChange={e => handleToDateChange(e.target.value)}
+                className="w-full mt-1.5 p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-neutral-700 dark:text-neutral-300">Duration (Minutes)</label>
@@ -303,6 +365,7 @@ export const CreateContestPage: React.FC = () => {
             </div>
           </div>
         </div>
+
 
         {/* SECTION 2: PROBLEM SET BUILDER */}
         <div className="space-y-5 pt-4 border-t border-neutral-100 dark:border-neutral-800">
