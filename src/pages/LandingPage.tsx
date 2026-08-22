@@ -14,8 +14,10 @@ import { useDb } from '../context/DbContext';
 import { ProblemCard } from '../components/problem/ProblemCard';
 import { ContestCard } from '../components/contest/ContestCard';
 import { PodiumCard } from '../components/leaderboard/PodiumCard';
+import { RealtimeReviewsSection } from '../components/landing/RealtimeReviewsSection';
 
 export const LandingPage: React.FC = () => {
+
   const { problems, contests, users, submissions } = useDb();
   const [heroRunning, setHeroRunning] = useState(false);
   const [heroExecuted, setHeroExecuted] = useState(false);
@@ -373,8 +375,12 @@ public:
         )}
       </section>
 
-      {/* 7. FINAL CTA SECTION */}
+      {/* 7. REAL-TIME COMMUNITY REVIEWS */}
+      <RealtimeReviewsSection />
+
+      {/* 8. FINAL CTA SECTION */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
         <ScrollReveal>
           <div className="p-10 sm:p-16 rounded-3xl bg-neutral-950 dark:bg-neutral-950 text-white border border-neutral-800 text-center space-y-6 relative overflow-hidden shadow-2xl">
             <div className="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none" />

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../services/db';
-import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission } from '../types';
+import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission, UserReview } from '../types';
 
 interface DbContextType {
   problems: Problem[];
@@ -9,6 +9,7 @@ interface DbContextType {
   discussions: DiscussionPost[];
   solutions: SolutionPost[];
   submissions: Submission[];
+  reviews: UserReview[];
   refreshDb: () => void;
   addProblem: typeof db.addProblem;
   updateProblem: typeof db.updateProblem;
@@ -25,6 +26,8 @@ interface DbContextType {
   upvoteDiscussion: typeof db.upvoteDiscussion;
   addSolution: typeof db.addSolution;
   upvoteSolution: typeof db.upvoteSolution;
+  addReview: typeof db.addReview;
+  likeReview: typeof db.likeReview;
 }
 
 const DbContext = createContext<DbContextType | undefined>(undefined);
@@ -38,6 +41,7 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [discussions, setDiscussions] = useState<DiscussionPost[]>(() => db.getDiscussions());
   const [solutions, setSolutions] = useState<SolutionPost[]>(() => db.getSolutions());
   const [submissions, setSubmissions] = useState<Submission[]>(() => db.getSubmissions());
+  const [reviews, setReviews] = useState<UserReview[]>(() => db.getReviews());
 
   const refreshDb = () => {
     setProblems(db.getProblems());
@@ -46,7 +50,9 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     setDiscussions(db.getDiscussions());
     setSolutions(db.getSolutions());
     setSubmissions(db.getSubmissions());
+    setReviews(db.getReviews());
   };
+
 
   useEffect(() => {
     const fetchLiveUsers = async () => {
@@ -133,14 +139,29 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       } catch {}
     };
 
+    const fetchLiveReviews = async () => {
+      try {
+        const res = await fetch(getApiUrl('/reviews'));
+        if (res.ok) {
+          const apiReviews = await res.json();
+          if (Array.isArray(apiReviews) && apiReviews.length > 0) {
+            setReviews(apiReviews);
+            localStorage.setItem('nimocode_reviews_v1', JSON.stringify(apiReviews));
+          }
+        }
+      } catch {}
+    };
+
     fetchLiveUsers();
     fetchLiveContests();
     fetchLiveDiscussions();
+    fetchLiveReviews();
 
     const interval = setInterval(() => {
       fetchLiveUsers();
       fetchLiveContests();
       fetchLiveDiscussions();
+      fetchLiveReviews();
     }, 4000);
 
     const handleDbUpdate = () => {
@@ -148,6 +169,7 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       fetchLiveUsers();
       fetchLiveContests();
       fetchLiveDiscussions();
+      fetchLiveReviews();
     };
 
     window.addEventListener('nimocode_db_update', handleDbUpdate);
@@ -156,7 +178,6 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       window.removeEventListener('nimocode_db_update', handleDbUpdate);
     };
   }, []);
-
 
   const handleAddContest = (contestData: Omit<Contest, 'id' | 'participantsCount'>): Contest => {
     const created = db.addContest(contestData);
@@ -180,7 +201,6 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     return created;
   };
 
-
   return (
     <DbContext.Provider
       value={{
@@ -190,6 +210,7 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         discussions,
         solutions,
         submissions,
+        reviews,
         refreshDb,
         addProblem: db.addProblem,
         updateProblem: db.updateProblem,
@@ -205,13 +226,16 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         deleteDiscussion: db.deleteDiscussion,
         upvoteDiscussion: db.upvoteDiscussion,
         addSolution: db.addSolution,
-        upvoteSolution: db.upvoteSolution
+        upvoteSolution: db.upvoteSolution,
+        addReview: db.addReview,
+        likeReview: db.likeReview
       }}
     >
       {children}
     </DbContext.Provider>
   );
 };
+
 
 export const useDb = () => {
   const context = useContext(DbContext);

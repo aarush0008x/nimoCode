@@ -1194,6 +1194,131 @@ app.delete('/api/discussions/:id', async (req, res) => {
   res.json({ success: true, message: 'Discussion deleted' });
 });
 
+// REALTIME COMMUNITY REVIEWS
+const DEFAULT_REVIEWS = [
+  {
+    id: 'rev-1',
+    name: 'Alex Rivera',
+    username: 'alex_algo',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=alex_algo',
+    companyOrCollege: 'Stanford University • SDE @ Meta',
+    rating: 5,
+    feedback: 'NimoCode completely transformed how I practice algorithms. The 1v1 PvP duels simulate the exact adrenaline rush of real-time FAANG interviews!',
+    badge: 'Grandmaster',
+    createdAt: '2 days ago',
+    likes: 48
+  },
+  {
+    id: 'rev-2',
+    name: 'Priya Sharma',
+    username: 'priya_dev',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=priya_dev',
+    companyOrCollege: 'IIT Bombay • Incoming SDE @ Google',
+    rating: 5,
+    feedback: 'The Socratic AI mentor is incredible. Instead of just spoiling the editorial, it nudges you towards the optimal two-pointer and DP transitions.',
+    badge: 'Grandmaster',
+    createdAt: '3 days ago',
+    likes: 62
+  },
+  {
+    id: 'rev-3',
+    name: 'David Kim',
+    username: 'dkim_coder',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=dkim_coder',
+    companyOrCollege: 'MIT • Systems Researcher',
+    rating: 5,
+    feedback: 'The 1-click GitHub 2,000 solution sync engine and high-resolution verified certificates are game-changers for software engineers.',
+    badge: 'Master',
+    createdAt: '5 days ago',
+    likes: 39
+  },
+  {
+    id: 'rev-4',
+    name: 'Rohan Gupta',
+    username: 'rohan_g',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=rohan_g',
+    companyOrCollege: 'IIT Delhi • Competitive Programmer',
+    rating: 5,
+    feedback: 'The Stopwatch timer and real-time university leaderboards make daily practice genuinely fun and engaging.',
+    badge: 'Master',
+    createdAt: '1 week ago',
+    likes: 54
+  }
+];
+
+app.get('/api/reviews', async (req, res) => {
+  if (isConnected && mongoDb) {
+    try {
+      const reviewCol = mongoDb.collection('reviews');
+      const count = await reviewCol.countDocuments();
+      if (count === 0) {
+        await reviewCol.insertMany(DEFAULT_REVIEWS);
+      }
+      const reviews = await reviewCol.find().sort({ _id: -1 }).toArray();
+      return res.json(reviews);
+    } catch {}
+  }
+
+  const reviews = getCollection('reviews') || [];
+  if (reviews.length === 0) {
+    saveCollection('reviews', DEFAULT_REVIEWS);
+    return res.json(DEFAULT_REVIEWS);
+  }
+  res.json(reviews);
+});
+
+app.post('/api/reviews', async (req, res) => {
+  const newReview = {
+    _id: `rev-${Date.now()}`,
+    id: `rev-${Date.now()}`,
+    name: req.body.name || 'Anonymous Coder',
+    username: req.body.username || 'anonymous',
+    avatar: req.body.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(req.body.username || 'user')}`,
+    companyOrCollege: req.body.companyOrCollege || 'Software Engineer',
+    rating: Number(req.body.rating) || 5,
+    feedback: req.body.feedback || '',
+    badge: req.body.badge || 'Verified Coder',
+    createdAt: 'Just now',
+    likes: 1
+  };
+
+  if (isConnected && mongoDb) {
+    try {
+      await mongoDb.collection('reviews').insertOne(newReview);
+      return res.status(201).json(newReview);
+    } catch {}
+  }
+
+  const reviews = getCollection('reviews') || [];
+  reviews.unshift(newReview);
+  saveCollection('reviews', reviews);
+  res.status(201).json(newReview);
+});
+
+app.put('/api/reviews/:id/like', async (req, res) => {
+  const { id } = req.params;
+  if (isConnected && mongoDb) {
+    try {
+      await mongoDb.collection('reviews').updateOne(
+        { $or: [{ id }, { _id: id }] },
+        { $inc: { likes: 1 } }
+      );
+      const updated = await mongoDb.collection('reviews').findOne({ $or: [{ id }, { _id: id }] });
+      return res.json(updated);
+    } catch {}
+  }
+
+  const reviews = getCollection('reviews') || [];
+  const idx = reviews.findIndex(r => r.id === id || r._id === id);
+  if (idx !== -1) {
+    reviews[idx].likes = (reviews[idx].likes || 0) + 1;
+    saveCollection('reviews', reviews);
+    return res.json(reviews[idx]);
+  }
+  res.status(404).json({ error: 'Review not found' });
+});
+
+
 // SUBMISSIONS
 app.get('/api/submissions', async (req, res) => {
   if (isConnected && mongoDb) {

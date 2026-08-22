@@ -261,3 +261,17 @@ export interface AICodeReviewResult {
   bugsFound: string[];
   optimizedCodeSnippet?: string;
 }
+
+export interface UserReview {
+  id: string;
+  name: string;
+  username: string;
+  avatar: string;
+  companyOrCollege?: string;
+  rating: number; // 1 to 5
+  feedback: string;
+  badge?: string;
+  createdAt: string;
+  likes: number;
+}
+

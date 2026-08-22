@@ -1,9 +1,8 @@
 import { generateLeetCode2000Problems } from '../data/leetcodeDataset';
 import { MOCK_CONTESTS } from '../data/contests';
 import { GLOBAL_COMMUNITY_USERS } from '../data/leaderboard';
-import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission } from '../types';
+import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission, UserReview } from '../types';
 import { getApiUrl } from '../utils/apiConfig';
-
 
 const LEETCODE_2000_PROBLEMS = generateLeetCode2000Problems();
 
@@ -15,8 +14,10 @@ const STORAGE_KEYS = {
   USERS: 'nimocode_users_v1',
   DISCUSSIONS: 'nimocode_discussions_v1',
   SOLUTIONS: 'nimocode_solutions_v1',
-  SUBMISSIONS: 'nimocode_submissions_v1'
+  SUBMISSIONS: 'nimocode_submissions_v1',
+  REVIEWS: 'nimocode_reviews_v1'
 };
+
 
 export type DbUserRecord = LeaderboardEntry & {
   _id?: string;
@@ -487,5 +488,53 @@ export const db = {
       localStorage.setItem(STORAGE_KEYS.SOLUTIONS, JSON.stringify(solutions));
       window.dispatchEvent(new Event('nimocode_db_update'));
     }
+  },
+
+  // COMMUNITY REVIEWS
+  getReviews: (): UserReview[] => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.REVIEWS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  addReview: (reviewData: Omit<UserReview, 'id' | 'createdAt' | 'likes'>): UserReview => {
+    const reviews = db.getReviews();
+    const newReview: UserReview = {
+      ...reviewData,
+      id: `rev-${Date.now()}`,
+      createdAt: 'Just now',
+      likes: 1
+    };
+    const updated = [newReview, ...reviews];
+    localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(updated));
+
+    // Sync to MongoDB Atlas API
+    fetch(getApiUrl('/reviews'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newReview)
+    }).catch(() => {});
+
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return newReview;
+  },
+
+  likeReview: (id: string) => {
+    const reviews = db.getReviews();
+    const idx = reviews.findIndex(r => r.id === id);
+    if (idx !== -1) {
+      reviews[idx].likes = (reviews[idx].likes || 0) + 1;
+      localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(reviews));
+
+      fetch(getApiUrl(`/reviews/${encodeURIComponent(id)}/like`), {
+        method: 'PUT'
+      }).catch(() => {});
+
+      window.dispatchEvent(new Event('nimocode_db_update'));
+    }
   }
 };
+
