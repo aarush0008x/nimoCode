@@ -163,7 +163,7 @@ export const SignupPage: React.FC = () => {
                 size="large"
                 width="368"
                 text="signup_with"
-                shape="rectangular"
+                shape="circle"
               />
             )}
           </div>
