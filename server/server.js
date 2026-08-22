@@ -799,7 +799,45 @@ app.get('/api/users', async (req, res) => {
   res.json(sorted);
 });
 
+app.get('/api/users/:username', async (req, res) => {
+  const { username } = req.params;
+  const targetUser = username.toLowerCase();
+
+  if (isConnected && mongoDb) {
+    try {
+      const user = await mongoDb.collection('users').findOne({
+        $or: [
+          { username: { $regex: `^${targetUser}$`, $options: 'i' } },
+          { email: { $regex: `^${targetUser}$`, $options: 'i' } }
+        ]
+      });
+      if (user) {
+        return res.json({
+          ...user,
+          rating: user.rating || 1200,
+          solvedCount: user.solvedCount || (user.solvedProblemIds ? user.solvedProblemIds.length : 0),
+          avatar: user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`
+        });
+      }
+    } catch (e) {
+      console.log('Error fetching user:', e.message);
+    }
+  }
+
+  const users = getCollection('users');
+  const user = users.find(u =>
+    (u.username && u.username.toLowerCase() === targetUser) ||
+    (u.email && u.email.toLowerCase() === targetUser)
+  );
+
+  if (user) {
+    return res.json(user);
+  }
+  res.status(404).json({ error: 'User not found' });
+});
+
 app.put('/api/users/:username/progress', async (req, res) => {
+
   const { username } = req.params;
   const updates = req.body;
   const targetUser = username.toLowerCase();

@@ -88,10 +88,12 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
             const ranked = merged.map((user, idx) => ({ ...user, rank: idx + 1 }));
             setUsers(ranked);
             localStorage.setItem('nimocode_users', JSON.stringify(ranked));
+            window.dispatchEvent(new Event('nimocode_db_update'));
           }
         }
       } catch {}
     };
+
 
     const fetchLiveContests = async () => {
       try {

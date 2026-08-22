@@ -57,26 +57,118 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  // Sync active user's globalRank & skill stats when database updates
+  // Sync active user's live rating, globalRank & skill stats in real time
   useEffect(() => {
-    const handleDbUpdate = () => {
-      if (user) {
-        const liveRank = calculateGlobalRank(user.username, user.rating);
-        const { skillBreakdown, weakArea, recommendedTopic } = calculateSkillStats(user.solvedProblemIds || []);
-        if (user.globalRank !== liveRank || user.weakArea !== weakArea) {
-          setUser(prev => prev ? ({
-            ...prev,
-            globalRank: liveRank,
-            skillBreakdown,
-            weakArea,
-            recommendedTopic
-          }) : null);
+    if (!user?.username) return;
+
+    const syncUserStats = () => {
+      try {
+        const users = db.getUsers();
+        const liveUser = users.find(u => u.username?.toLowerCase() === user.username.toLowerCase());
+        if (liveUser) {
+          const currentRating = liveUser.rating ?? user.rating;
+          const currentSolvedIds = liveUser.solvedProblemIds ?? (user.solvedProblemIds || []);
+          const currentSolvedCount = liveUser.solvedCount ?? (user.totalSolved || currentSolvedIds.length);
+          const currentStreak = liveUser.streak ?? user.streakDays;
+          const currentLevel = liveUser.level ?? user.level;
+          const currentXP = liveUser.currentXP ?? user.currentXP;
+          const currentNextXP = liveUser.nextLevelXP ?? user.nextLevelXP;
+
+          const liveRank = calculateGlobalRank(user.username, currentRating);
+          const { skillBreakdown, weakArea, recommendedTopic } = calculateSkillStats(currentSolvedIds);
+
+          if (
+            user.rating !== currentRating ||
+            user.globalRank !== liveRank ||
+            user.totalSolved !== currentSolvedCount ||
+            user.streakDays !== currentStreak ||
+            user.level !== currentLevel ||
+            user.currentXP !== currentXP ||
+            user.weakArea !== weakArea
+          ) {
+            setUser(prev => prev ? ({
+              ...prev,
+              rating: currentRating,
+              totalSolved: currentSolvedCount,
+              streakDays: currentStreak,
+              level: currentLevel,
+              currentXP,
+              nextLevelXP: currentNextXP,
+              solvedProblemIds: currentSolvedIds,
+              globalRank: liveRank,
+              skillBreakdown,
+              weakArea,
+              recommendedTopic
+            }) : null);
+          }
         }
-      }
+      } catch {}
     };
-    window.addEventListener('nimocode_db_update', handleDbUpdate);
-    return () => window.removeEventListener('nimocode_db_update', handleDbUpdate);
-  }, [user?.username, user?.rating, user?.solvedProblemIds]);
+
+    const fetchLiveUserFromApi = async () => {
+      try {
+        const res = await fetch(getApiUrl(`/users/${encodeURIComponent(user.username)}`));
+        if (res.ok) {
+          const apiUser = await res.json();
+          if (apiUser && apiUser.username) {
+            const apiRating = apiUser.rating ?? user.rating;
+            const apiSolved = apiUser.solvedProblemIds ?? (user.solvedProblemIds || []);
+            const apiCount = apiUser.solvedCount ?? (user.totalSolved || apiSolved.length);
+            const liveRank = calculateGlobalRank(user.username, apiRating);
+            const { skillBreakdown, weakArea, recommendedTopic } = calculateSkillStats(apiSolved);
+
+            if (user.rating !== apiRating || user.totalSolved !== apiCount || user.globalRank !== liveRank) {
+              setUser(prev => prev ? ({
+                ...prev,
+                rating: apiRating,
+                totalSolved: apiCount,
+                solvedProblemIds: apiSolved,
+                level: apiUser.level ?? prev.level,
+                currentXP: apiUser.currentXP ?? prev.currentXP,
+                nextLevelXP: apiUser.nextLevelXP ?? prev.nextLevelXP,
+                streakDays: apiUser.streak ?? prev.streakDays,
+                globalRank: liveRank,
+                skillBreakdown,
+                weakArea,
+                recommendedTopic
+              }) : null);
+
+              db.updateUser(user.username, {
+                rating: apiRating,
+                solvedCount: apiCount,
+                level: apiUser.level,
+                currentXP: apiUser.currentXP,
+                nextLevelXP: apiUser.nextLevelXP,
+                streak: apiUser.streak,
+                solvedProblemIds: apiSolved
+              });
+            }
+          }
+        }
+      } catch {}
+    };
+
+    // Run initial sync
+    syncUserStats();
+    fetchLiveUserFromApi();
+
+    const interval = setInterval(() => {
+      syncUserStats();
+      fetchLiveUserFromApi();
+    }, 3000);
+
+    window.addEventListener('nimocode_db_update', syncUserStats);
+    window.addEventListener('storage', syncUserStats);
+    window.addEventListener('focus', fetchLiveUserFromApi);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('nimocode_db_update', syncUserStats);
+      window.removeEventListener('storage', syncUserStats);
+      window.removeEventListener('focus', fetchLiveUserFromApi);
+    };
+  }, [user?.username]);
+
 
   const login = async (loginId: string, passwordInput: string): Promise<boolean> => {
     const trimmedId = loginId.trim();

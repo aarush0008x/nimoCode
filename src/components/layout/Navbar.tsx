@@ -4,6 +4,7 @@ import { Code2, Menu, X, ChevronRight, Zap, Trophy, BookOpen, Users, Compass, Pl
 import { ThemeToggle } from '../common/ThemeToggle';
 import { scrollToSection } from '../../utils/smoothScroll';
 import { useAuth } from '../../context/AuthContext';
+import { useDb } from '../../context/DbContext';
 
 export const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -14,6 +15,11 @@ export const Navbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { users } = useDb();
+
+  const liveUserRecord = user ? users.find(u => u.username?.toLowerCase() === user.username?.toLowerCase()) : null;
+  const currentRating = liveUserRecord?.rating ?? user?.rating ?? 1200;
+
 
   useEffect(() => {
     const handleScroll = () => {
@@ -232,8 +238,9 @@ export const Navbar: React.FC = () => {
                   <img src={user.avatar} alt={user.name} className="w-5 h-5 rounded-full object-cover" />
                   <span className="text-neutral-950 dark:text-white font-extrabold">{user.username}</span>
                   <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 font-mono text-[10px] font-extrabold border border-amber-500/20">
-                    {user.rating}
+                    {currentRating}
                   </span>
+
                 </Link>
 
                 <button
