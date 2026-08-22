@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Swords, Trophy, Clock, ChevronLeft, ArrowRight, Zap, Users } from 'lucide-react';
+import { Swords, Trophy, Clock, ChevronLeft, ArrowRight, Zap, Users, Copy, Check } from 'lucide-react';
 import { useDb } from '../context/DbContext';
 import { useAuth } from '../context/AuthContext';
 import { CodeEditor } from '../components/problem/CodeEditor';
@@ -15,19 +15,33 @@ export const DuelRoomPage: React.FC = () => {
   const { problems } = useDb();
   const { user, markProblemSolved } = useAuth();
 
-  const problem = problems[0]; // Problem #1 Two Sum
+  const [roomData, setRoomData] = useState<any>(null);
   const [selectedLang, setSelectedLang] = useState<ProgrammingLanguage>('cpp');
-  const [code, setCode] = useState<string>(problem.starterCode.cpp);
+  const [code, setCode] = useState<string>('');
+  const [codeInitialized, setCodeInitialized] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [submission, setSubmission] = useState<Submission | null>(null);
 
-  // Room / Match State
+  // Match State
   const [timerSeconds, setTimerSeconds] = useState(600);
-  const [roomData, setRoomData] = useState<any>(null);
   const [matchWinner, setMatchWinner] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Timer countdown
+  // 1. Resolve problem dynamically from roomData
+  const problem = (roomData?.problemId && problems.find(p => p.id === roomData.problemId))
+    || (roomData?.problemTitle && problems.find(p => roomData.problemTitle.includes(p.title)))
+    || problems[0];
+
+  // 2. Initialize starter code once problem is known
+  useEffect(() => {
+    if (problem && (!codeInitialized || !code)) {
+      setCode(problem.starterCode[selectedLang] || '');
+      setCodeInitialized(true);
+    }
+  }, [problem?.id, selectedLang, codeInitialized]);
+
+  // 3. Timer countdown
   useEffect(() => {
     const timer = setInterval(() => {
       setTimerSeconds(prev => (prev > 0 ? prev - 1 : 0));
@@ -35,7 +49,7 @@ export const DuelRoomPage: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Poll room state every 2s to get real opponent join + winner
+  // 4. Poll room state every 2s for live opponent progress & winner
   useEffect(() => {
     if (!matchId) return;
     const poll = async () => {
@@ -53,7 +67,15 @@ export const DuelRoomPage: React.FC = () => {
     poll();
     pollRef.current = setInterval(poll, 2000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [matchId]);
+  }, [matchId, matchWinner]);
+
+  // 5. Determine Player Perspective (Am I Player 1 or Player 2?)
+  const isPlayer1 = roomData?.player1?.username && user?.username
+    ? roomData.player1.username.toLowerCase() === user.username.toLowerCase()
+    : true;
+
+  const myPlayer = isPlayer1 ? roomData?.player1 : roomData?.player2;
+  const opponent = isPlayer1 ? roomData?.player2 : roomData?.player1;
 
   const handleLanguageChange = (newLang: ProgrammingLanguage) => {
     setSelectedLang(newLang);
@@ -70,6 +92,22 @@ export const DuelRoomPage: React.FC = () => {
     const result = await runCodeExecution({ problem, language: selectedLang, code, isSubmission: false });
     setSubmission(result);
     setIsRunning(false);
+
+    // Sync live progress with server
+    if (matchId) {
+      try {
+        await fetch(getApiUrl(`/duels/${matchId}/progress`), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: user?.username || myPlayer?.username || 'Guest',
+            status: result.status === 'Accepted' ? 'Passed Sample Tests ⚡' : `Tests: ${result.passedCases}/${result.totalCases}`,
+            testCasesPassed: result.passedCases || 0,
+            totalCases: result.totalCases || 2
+          })
+        });
+      } catch {}
+    }
   };
 
   const handleSubmitCode = async () => {
@@ -79,11 +117,10 @@ export const DuelRoomPage: React.FC = () => {
     setIsRunning(false);
 
     if (result.status === 'Accepted') {
-      const winnerName = user?.username || 'Player';
+      const winnerName = user?.username || myPlayer?.username || 'Player';
       setMatchWinner(winnerName);
       markProblemSolved(problem.id, problem.difficulty);
 
-      // Notify backend of winner
       if (matchId) {
         try {
           await fetch(getApiUrl(`/duels/${matchId}/submit`), {
@@ -94,8 +131,31 @@ export const DuelRoomPage: React.FC = () => {
         } catch {}
       }
 
-      confetti({ particleCount: 120, spread: 90, origin: { y: 0.5 } });
+      confetti({ particleCount: 140, spread: 100, origin: { y: 0.5 } });
+    } else {
+      // Sync attempt progress
+      if (matchId) {
+        try {
+          await fetch(getApiUrl(`/duels/${matchId}/progress`), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: user?.username || myPlayer?.username || 'Guest',
+              status: `Attempt: ${result.passedCases}/${result.totalCases} cases`,
+              testCasesPassed: result.passedCases || 0,
+              totalCases: result.totalCases || 42
+            })
+          });
+        } catch {}
+      }
     }
+  };
+
+  const handleCopyRoomCode = async () => {
+    if (!roomData?.code) return;
+    await navigator.clipboard.writeText(roomData.code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const formatTimer = (secs: number) => {
@@ -103,6 +163,11 @@ export const DuelRoomPage: React.FC = () => {
     const s = secs % 60;
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
+
+  const isMyVictory = matchWinner && user?.username && (
+    matchWinner.toLowerCase() === user.username.toLowerCase() ||
+    matchWinner.toLowerCase() === (myPlayer?.username || '').toLowerCase()
+  );
 
   return (
     <div className="pt-20 pb-12 px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto min-h-[calc(100vh-80px)] space-y-4">
@@ -112,9 +177,17 @@ export const DuelRoomPage: React.FC = () => {
           <Link to="/duels" className="p-1.5 rounded-xl border border-neutral-800 text-neutral-400 hover:text-white transition-colors">
             <ChevronLeft className="w-4 h-4" />
           </Link>
-          <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 font-mono uppercase">
-            <Swords className="w-4 h-4" />
-            1v1 RANKED MATCH • {problem.title}
+          <div>
+            <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 font-mono uppercase">
+              <Swords className="w-4 h-4" />
+              1v1 REALTIME DUEL • #{problem.number || problem.id} {problem.title}
+            </div>
+            <div className="text-[11px] text-neutral-400 flex items-center gap-2 mt-0.5">
+              <span>Difficulty: <strong className={problem.difficulty === 'Hard' ? 'text-rose-400' : problem.difficulty === 'Medium' ? 'text-amber-400' : 'text-emerald-400'}>{problem.difficulty}</strong></span>
+              {roomData?.code && (
+                <span className="font-mono text-neutral-500">| Room Code: <strong className="text-amber-400 font-bold">{roomData.code}</strong></span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -127,7 +200,7 @@ export const DuelRoomPage: React.FC = () => {
 
           <div className="flex items-center gap-1 font-bold text-emerald-400">
             <Trophy className="w-4 h-4" />
-            <span>+30 ELO Stakes</span>
+            <span>+{roomData?.ratingStakes || (problem.difficulty === 'Hard' ? 50 : problem.difficulty === 'Medium' ? 35 : 25)} ELO Stakes</span>
           </div>
         </div>
       </div>
@@ -139,58 +212,86 @@ export const DuelRoomPage: React.FC = () => {
           {/* Live Opponent Progress Card */}
           <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-3 shadow-xs">
             <div className="flex items-center justify-between text-xs font-bold">
-              <span className="text-neutral-500 uppercase tracking-wider text-[10px]">Opponent Status</span>
+              <span className="text-neutral-500 uppercase tracking-wider text-[10px]">Realtime Opponent Status</span>
               <span className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold ${
-                roomData?.player2
+                opponent
                   ? 'bg-emerald-500/10 text-emerald-500'
-                  : 'bg-amber-500/10 text-amber-500'
+                  : 'bg-amber-500/10 text-amber-500 animate-pulse'
               }`}>
-                {roomData?.player2 ? '🟢 IN MATCH' : '⏳ WAITING FOR OPPONENT'}
+                {opponent ? '🟢 LIVE OPPONENT CONNECTED' : '⏳ WAITING FOR OPPONENT TO JOIN'}
               </span>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-neutral-100 dark:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center justify-center text-xs overflow-hidden">
-                  {roomData?.player2?.avatar
-                    ? <img src={roomData.player2.avatar} className="w-full h-full object-cover" />
-                    : roomData?.player2 ? <span>{roomData.player2.username?.[0]?.toUpperCase()}</span> : <Users className="w-4 h-4 opacity-40" />
-                  }
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-neutral-950 dark:text-white">
-                    {roomData?.player2 ? `@${roomData.player2.username}` : 'Waiting for opponent...'}
+            {opponent ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center justify-center text-xs overflow-hidden border border-neutral-200 dark:border-neutral-700">
+                    {opponent.avatar ? (
+                      <img src={opponent.avatar} className="w-full h-full object-cover" alt="" />
+                    ) : (
+                      <span>{opponent.username?.[0]?.toUpperCase() || 'O'}</span>
+                    )}
                   </div>
-                  <div className="text-[10px] text-neutral-400 font-mono">
-                    {roomData?.player2 ? `${roomData.player2.rating} ELO` : 'Share your room code!'}
+                  <div>
+                    <div className="text-xs font-extrabold text-neutral-950 dark:text-white flex items-center gap-1.5">
+                      <span>@{opponent.username}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-500 font-mono">Opponent</span>
+                    </div>
+                    <div className="text-[10px] text-neutral-400 font-mono">{opponent.rating || 1200} ELO Rating</div>
+                  </div>
+                </div>
+
+                <div className="text-right font-mono text-xs">
+                  <div className="font-bold text-neutral-800 dark:text-neutral-200">
+                    {roomData?.winner ? `🏆 @${roomData.winner} submitted` : (opponent.status || 'Coding...')}
+                  </div>
+                  <div className="text-[10px] text-neutral-400">
+                    Passed: <strong className="text-amber-500">{opponent.testCasesPassed || 0}</strong>/{opponent.totalCases || 2} Test Cases
                   </div>
                 </div>
               </div>
-              <div className="text-right font-mono text-xs">
-                <div className="font-bold text-neutral-800 dark:text-neutral-200">
-                  {roomData?.winner ? `🏆 ${roomData.winner} won` : roomData?.player2 ? 'Coding...' : '—'}
+            ) : (
+              <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-300 dark:border-neutral-800 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-neutral-950 dark:text-white">Waiting for real player...</div>
+                    <div className="text-[10px] text-neutral-500">Share code with a friend to duel</div>
+                  </div>
                 </div>
                 {roomData?.code && (
-                  <div className="text-[10px] text-neutral-400">Code: <span className="font-black text-amber-500">{roomData.code}</span></div>
+                  <button
+                    onClick={handleCopyRoomCode}
+                    className="px-3 py-1.5 rounded-lg bg-neutral-950 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-950 font-mono text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                  >
+                    {copied ? <><Check className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> {roomData.code}</>}
+                  </button>
                 )}
               </div>
-            </div>
+            )}
           </div>
-
 
           {/* Problem Details */}
           <div className="flex-1 p-5 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-y-auto max-h-[580px] space-y-4">
-            <h2 className="text-sm font-bold text-neutral-950 dark:text-white">#{problem.number} {problem.title}</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-neutral-950 dark:text-white">#{problem.number || problem.id} {problem.title}</h2>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                problem.difficulty === 'Hard' ? 'text-rose-500 bg-rose-500/10' : problem.difficulty === 'Medium' ? 'text-amber-500 bg-amber-500/10' : 'text-emerald-500 bg-emerald-500/10'
+              }`}>{problem.difficulty}</span>
+            </div>
             <div className="whitespace-pre-wrap text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
               {problem.description}
             </div>
 
             <div className="space-y-2 pt-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Examples</h4>
-              {problem.examples.map((ex, idx) => (
+              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Sample Test Cases &amp; Examples</h4>
+              {problem.examples?.map((ex: any, idx: number) => (
                 <div key={idx} className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs font-mono">
                   <div>Input: {ex.input}</div>
                   <div className="text-emerald-500 font-bold">Output: {ex.output}</div>
+                  {ex.explanation && <div className="text-neutral-400 text-[11px] mt-1">{ex.explanation}</div>}
                 </div>
               ))}
             </div>
@@ -218,29 +319,49 @@ export const DuelRoomPage: React.FC = () => {
         </div>
       </div>
 
-      {/* VICTORY MODAL */}
+      {/* VICTORY / DEFEAT MODAL */}
       {matchWinner && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 w-full max-w-lg space-y-6 shadow-2xl animate-fade-in text-center">
-            <div className="w-16 h-16 rounded-3xl bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center mx-auto shadow-inner">
-              <Trophy className="w-8 h-8" />
-            </div>
+            {isMyVictory ? (
+              <div className="w-16 h-16 rounded-3xl bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center mx-auto shadow-inner">
+                <Trophy className="w-8 h-8" />
+              </div>
+            ) : (
+              <div className="w-16 h-16 rounded-3xl bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center mx-auto shadow-inner">
+                <Swords className="w-8 h-8" />
+              </div>
+            )}
 
             <div className="space-y-1">
-              <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 font-mono text-xs font-bold border border-emerald-500/20">
-                VICTORY CLAIMED
+              <span className={`px-3 py-1 rounded-full font-mono text-xs font-bold border ${
+                isMyVictory ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+              }`}>
+                {isMyVictory ? 'VICTORY CLAIMED 🏆' : 'MATCH CONCLUDED ⚔️'}
               </span>
               <h2 className="text-2xl font-extrabold text-neutral-950 dark:text-white pt-2">
-                You Won the 1v1 Code Duel!
+                {isMyVictory ? 'You Won the 1v1 Code Duel!' : `@${matchWinner} Won the Match!`}
               </h2>
               <p className="text-xs text-neutral-500">
-                You submitted a passing solution before your opponent and claimed the match victory.
+                {isMyVictory
+                  ? 'You submitted the accepted solution before your opponent and claimed the match victory.'
+                  : `@${matchWinner} submitted a passing solution first. Practice more and challenge again!`
+                }
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs font-mono font-bold text-amber-500 flex items-center justify-center gap-2">
-              <Zap className="w-4 h-4 fill-amber-500" />
-              <span>+30 ELO Rating Gained • New Rating: {(user?.rating || 1200) + 30}</span>
+            <div className={`p-4 rounded-2xl border text-xs font-mono font-bold flex items-center justify-center gap-2 ${
+              isMyVictory
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+                : 'bg-neutral-100 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-neutral-400'
+            }`}>
+              <Zap className="w-4 h-4 fill-current" />
+              <span>
+                {isMyVictory
+                  ? `+${roomData?.ratingStakes || 30} ELO Rating Gained • New Rating: ${(user?.rating || 1200) + (roomData?.ratingStakes || 30)}`
+                  : `Rating Stake Concluded • Practice to reclaim your rank`
+                }
+              </span>
             </div>
 
             <div className="flex items-center justify-center gap-3 pt-2">
@@ -248,7 +369,7 @@ export const DuelRoomPage: React.FC = () => {
                 to="/duels"
                 className="px-6 py-2.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-950 font-bold text-xs shadow-md flex items-center gap-2"
               >
-                <span>Back to Duels Lobby</span>
+                <span>Back to Duels Arena</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
@@ -258,3 +379,4 @@ export const DuelRoomPage: React.FC = () => {
     </div>
   );
 };
+

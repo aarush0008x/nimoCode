@@ -877,7 +877,17 @@ const generateRoomCode = () => {
 };
 
 // GET /api/duels — list all open public rooms
-app.get('/api/duels', (req, res) => {
+app.get('/api/duels', async (req, res) => {
+  if (duelRooms.size === 0 && isConnected && mongoDb) {
+    try {
+      const dbRooms = await mongoDb.collection('duels')
+        .find({ status: { $in: ['waiting', 'active'] } })
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .toArray();
+      dbRooms.forEach(r => duelRooms.set(r.id, r));
+    } catch {}
+  }
   const rooms = Array.from(duelRooms.values())
     .filter(r => r.status === 'waiting' || r.status === 'active')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -887,7 +897,7 @@ app.get('/api/duels', (req, res) => {
 
 // POST /api/duels — create a new room
 app.post('/api/duels', async (req, res) => {
-  const { player1, problemId, problemTitle, ratingStakes, isPrivate } = req.body;
+  const { player1, problemId, problemTitle, difficulty, ratingStakes, isPrivate } = req.body;
   const code = generateRoomCode();
   const id = `room-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
@@ -895,11 +905,19 @@ app.post('/api/duels', async (req, res) => {
     id,
     _id: id,
     code,
-    player1: player1 || { username: 'Guest', name: 'Guest', rating: 1200 },
+    player1: {
+      username: player1?.username || 'Guest',
+      name: player1?.name || player1?.username || 'Guest',
+      avatar: player1?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${player1?.username || 'Guest'}`,
+      rating: player1?.rating || 1200,
+      status: 'coding',
+      testCasesPassed: 0,
+      totalCases: 2
+    },
     player2: null,
     problemId: problemId || '1',
     problemTitle: problemTitle || '#1 Two Sum',
-    difficulty: 'Easy',
+    difficulty: difficulty || 'Easy',
     ratingStakes: ratingStakes || 30,
     isPrivate: !!isPrivate,
     status: 'waiting',
@@ -914,33 +932,65 @@ app.post('/api/duels', async (req, res) => {
     try { await mongoDb.collection('duels').insertOne({ ...newRoom }); } catch {}
   }
 
-  console.log(`[Duel] ✅ Room created: ${code} (${isPrivate ? 'private' : 'public'}) by ${newRoom.player1.username}`);
+  console.log(`[Duel] ✅ Room created: ${code} (${isPrivate ? 'private' : 'public'}) [Problem: ${newRoom.problemTitle}] by @${newRoom.player1.username}`);
   res.status(201).json(newRoom);
 });
 
 // GET /api/duels/:id — get single room by ID
-app.get('/api/duels/:id', (req, res) => {
-  const room = duelRooms.get(req.params.id);
+app.get('/api/duels/:id', async (req, res) => {
+  let room = duelRooms.get(req.params.id);
+  if (!room && isConnected && mongoDb) {
+    try {
+      room = await mongoDb.collection('duels').findOne({ id: req.params.id });
+      if (room) duelRooms.set(room.id, room);
+    } catch {}
+  }
   if (!room) return res.status(404).json({ error: 'Room not found.' });
   res.json(room);
 });
 
 // GET /api/duels/code/:code — get room by code
-app.get('/api/duels/code/:code', (req, res) => {
+app.get('/api/duels/code/:code', async (req, res) => {
   const code = (req.params.code || '').toUpperCase();
-  const room = Array.from(duelRooms.values()).find(r => r.code === code);
+  let room = Array.from(duelRooms.values()).find(r => r.code === code);
+  if (!room && isConnected && mongoDb) {
+    try {
+      room = await mongoDb.collection('duels').findOne({ code });
+      if (room) duelRooms.set(room.id, room);
+    } catch {}
+  }
   if (!room) return res.status(404).json({ error: 'Room not found.' });
   res.json(room);
 });
 
 // PUT /api/duels/:id/join — join room as player2
 app.put('/api/duels/:id/join', async (req, res) => {
-  const room = duelRooms.get(req.params.id);
+  let room = duelRooms.get(req.params.id);
+  if (!room && isConnected && mongoDb) {
+    try {
+      room = await mongoDb.collection('duels').findOne({ id: req.params.id });
+      if (room) duelRooms.set(room.id, room);
+    } catch {}
+  }
   if (!room) return res.status(404).json({ error: 'Room not found.' });
-  if (room.status !== 'waiting') return res.status(400).json({ error: 'Room is no longer open.' });
-
+  
   const { player2 } = req.body;
-  room.player2 = player2 || { username: 'Opponent', rating: 1200 };
+  const p2Data = {
+    username: player2?.username || 'Opponent',
+    name: player2?.name || player2?.username || 'Opponent',
+    avatar: player2?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${player2?.username || 'Opponent'}`,
+    rating: player2?.rating || 1200,
+    status: 'coding',
+    testCasesPassed: 0,
+    totalCases: 2
+  };
+
+  // If already player2, simply return room
+  if (room.player2 && room.player2.username === p2Data.username) {
+    return res.json(room);
+  }
+
+  room.player2 = p2Data;
   room.status = 'active';
   duelRooms.set(room.id, room);
 
@@ -948,13 +998,49 @@ app.put('/api/duels/:id/join', async (req, res) => {
     try { await mongoDb.collection('duels').updateOne({ id: room.id }, { $set: { player2: room.player2, status: 'active' } }); } catch {}
   }
 
-  console.log(`[Duel] ✅ ${room.player2.username} joined room ${room.code}`);
+  console.log(`[Duel] ✅ @${room.player2.username} joined room ${room.code}`);
+  res.json(room);
+});
+
+// PUT /api/duels/:id/progress — sync live test execution progress
+app.put('/api/duels/:id/progress', async (req, res) => {
+  let room = duelRooms.get(req.params.id);
+  if (!room && isConnected && mongoDb) {
+    try {
+      room = await mongoDb.collection('duels').findOne({ id: req.params.id });
+      if (room) duelRooms.set(room.id, room);
+    } catch {}
+  }
+  if (!room) return res.status(404).json({ error: 'Room not found.' });
+
+  const { username, status, testCasesPassed, totalCases } = req.body;
+  if (room.player1 && (room.player1.username === username || !username)) {
+    if (status) room.player1.status = status;
+    if (testCasesPassed !== undefined) room.player1.testCasesPassed = testCasesPassed;
+    if (totalCases !== undefined) room.player1.totalCases = totalCases;
+  } else if (room.player2 && (room.player2.username === username || !username)) {
+    if (status) room.player2.status = status;
+    if (testCasesPassed !== undefined) room.player2.testCasesPassed = testCasesPassed;
+    if (totalCases !== undefined) room.player2.totalCases = totalCases;
+  }
+
+  duelRooms.set(room.id, room);
+  if (isConnected && mongoDb) {
+    try { await mongoDb.collection('duels').updateOne({ id: room.id }, { $set: { player1: room.player1, player2: room.player2 } }); } catch {}
+  }
+
   res.json(room);
 });
 
 // PUT /api/duels/:id/submit — declare winner
 app.put('/api/duels/:id/submit', async (req, res) => {
-  const room = duelRooms.get(req.params.id);
+  let room = duelRooms.get(req.params.id);
+  if (!room && isConnected && mongoDb) {
+    try {
+      room = await mongoDb.collection('duels').findOne({ id: req.params.id });
+      if (room) duelRooms.set(room.id, room);
+    } catch {}
+  }
   if (!room) return res.status(404).json({ error: 'Room not found.' });
 
   const { winner } = req.body;
@@ -965,10 +1051,11 @@ app.put('/api/duels/:id/submit', async (req, res) => {
     if (isConnected && mongoDb) {
       try { await mongoDb.collection('duels').updateOne({ id: room.id }, { $set: { winner, status: 'finished' } }); } catch {}
     }
-    console.log(`[Duel] 🏆 Room ${room.code} won by ${winner}`);
+    console.log(`[Duel] 🏆 Room ${room.code} won by @${winner}`);
   }
   res.json(room);
 });
+
 
 
 app.post('/api/submissions', async (req, res) => {

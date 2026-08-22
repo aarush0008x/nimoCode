@@ -3,9 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Code2, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { waf } from '../services/waf';
-
+import { GoogleLogin } from '@react-oauth/google';
 import { EmailVerificationModal } from '../components/auth/EmailVerificationModal';
-
 import { getApiUrl } from '../utils/apiConfig';
 
 export const SignupPage: React.FC = () => {
@@ -20,9 +19,28 @@ export const SignupPage: React.FC = () => {
   const [otpCode, setOtpCode] = useState<string | undefined>(undefined);
   const [emailSent, setEmailSent] = useState<boolean | undefined>(undefined);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const { signup } = useAuth();
+  const { signup, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    setIsGoogleLoading(true);
+    setErrorMsg('');
+    const token = credentialResponse?.credential;
+    if (!token) {
+      setErrorMsg('Google sign-in failed. Please try again.');
+      setIsGoogleLoading(false);
+      return;
+    }
+    const ok = await loginWithGoogle(token);
+    setIsGoogleLoading(false);
+    if (ok) {
+      navigate('/problems');
+    } else {
+      setErrorMsg('Google sign-in failed. Please try again or use regular email signup.');
+    }
+  };
 
   const handleUsernameChange = async (val: string) => {
     const clean = val.toLowerCase().replace(/\s+/g, '_');
@@ -129,6 +147,32 @@ export const SignupPage: React.FC = () => {
             <span>{errorMsg}</span>
           </div>
         )}
+
+        {/* Google One-Click Registration */}
+        <div className="space-y-3">
+          <div className="flex justify-center">
+            {isGoogleLoading ? (
+              <div className="w-full py-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-xs font-bold text-center text-neutral-500 animate-pulse">
+                Creating account with Google...
+              </div>
+            ) : (
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setErrorMsg('Google sign-up failed. Please try again or use standard email registration.')}
+                theme="outline"
+                size="large"
+                width="368"
+                text="signup_with"
+                shape="rectangular"
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-xs text-neutral-400">
+            <div className="flex-1 border-t border-neutral-200 dark:border-neutral-800" />
+            <span>or sign up with email</span>
+            <div className="flex-1 border-t border-neutral-200 dark:border-neutral-800" />
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-3.5 text-xs font-bold">
           <div className="space-y-1">
