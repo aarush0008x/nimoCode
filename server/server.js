@@ -799,6 +799,36 @@ app.get('/api/users', async (req, res) => {
   res.json(sorted);
 });
 
+app.put('/api/users/:username/progress', async (req, res) => {
+  const { username } = req.params;
+  const updates = req.body;
+  const targetUser = username.toLowerCase();
+
+  if (isConnected && mongoDb) {
+    try {
+      const usersCol = mongoDb.collection('users');
+      await usersCol.updateOne(
+        { username: { $regex: `^${targetUser}$`, $options: 'i' } },
+        { $set: updates }
+      );
+      const updated = await usersCol.findOne({ username: { $regex: `^${targetUser}$`, $options: 'i' } });
+      return res.json(updated);
+    } catch (e) {
+      console.log('Error updating user progress:', e.message);
+    }
+  }
+
+  const users = getCollection('users');
+  const index = users.findIndex(u => u.username.toLowerCase() === targetUser);
+  if (index !== -1) {
+    users[index] = { ...users[index], ...updates };
+    saveCollection('users', users);
+    return res.json(users[index]);
+  }
+  res.status(404).json({ error: 'User not found' });
+});
+
+
 // CONTESTS
 app.get('/api/contests', async (req, res) => {
   if (isConnected && mongoDb) {

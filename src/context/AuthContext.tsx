@@ -3,6 +3,7 @@ import type { UserProfile, Difficulty } from '../types';
 import { db } from '../services/db';
 import { setCookie, getCookie, deleteCookie } from '../utils/cookies';
 import { getApiUrl } from '../utils/apiConfig';
+import { calculateSkillStats, calculateGlobalRank } from '../utils/userStats';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -56,6 +57,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
+  // Sync active user's globalRank & skill stats when database updates
+  useEffect(() => {
+    const handleDbUpdate = () => {
+      if (user) {
+        const liveRank = calculateGlobalRank(user.username, user.rating);
+        const { skillBreakdown, weakArea, recommendedTopic } = calculateSkillStats(user.solvedProblemIds || []);
+        if (user.globalRank !== liveRank || user.weakArea !== weakArea) {
+          setUser(prev => prev ? ({
+            ...prev,
+            globalRank: liveRank,
+            skillBreakdown,
+            weakArea,
+            recommendedTopic
+          }) : null);
+        }
+      }
+    };
+    window.addEventListener('nimocode_db_update', handleDbUpdate);
+    return () => window.removeEventListener('nimocode_db_update', handleDbUpdate);
+  }, [user?.username, user?.rating, user?.solvedProblemIds]);
+
   const login = async (loginId: string, passwordInput: string): Promise<boolean> => {
     const trimmedId = loginId.trim();
     const trimmedPass = passwordInput.trim();
@@ -78,6 +100,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             password: authUser.password || trimmedPass
           });
 
+          const solvedIds = authUser.solvedProblemIds || [];
+          const { skillBreakdown, weakArea, recommendedTopic } = calculateSkillStats(solvedIds);
+          const computedRank = calculateGlobalRank(authUser.username, authUser.rating || 1200);
+
           const profile: UserProfile = {
             username: authUser.username,
             name: authUser.name || authUser.username,
@@ -85,9 +111,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             avatar: authUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(authUser.username)}`,
             title: authUser.badge || 'Competitive Coder',
             rating: authUser.rating || 1200,
-            globalRank: authUser.rank || 1,
-            totalSolved: authUser.solvedCount || 0,
-            solvedProblemIds: authUser.solvedProblemIds || [],
+            globalRank: computedRank,
+            totalSolved: authUser.solvedCount || solvedIds.length || 0,
+            solvedProblemIds: solvedIds,
             solvedStats: authUser.solvedStats || {
               easy: 0, easyTotal: 820, medium: 0, mediumTotal: 1450, hard: 0, hardTotal: 680
             },
@@ -95,11 +121,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             level: authUser.level || 1,
             currentXP: authUser.currentXP || 0,
             nextLevelXP: authUser.nextLevelXP || 1000,
-            weakArea: 'Dynamic Programming',
-            recommendedTopic: 'Practice array and dynamic programming challenges.',
-            skillBreakdown: {
-              'Arrays': 50, 'Strings': 40, 'Trees': 30, 'Graphs': 20, 'Dynamic Programming': 10, 'SQL': 40, 'Algorithms': 45, 'Binary Search': 35, 'Stack': 40, 'Hash Table': 50, 'Math': 30, 'Heap': 25
-            },
+            weakArea,
+            recommendedTopic,
+            skillBreakdown,
             achievements: [
               { id: 'first-sub', title: 'First Steps', description: 'Joined NimoCode AI platform.', icon: '🚀', unlocked: true }
             ],
@@ -118,9 +142,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Backend login network issue, attempting local fallback:', err);
     }
 
+
     // 2. Local database fallback
     const localAuthUser = db.authenticateUser(trimmedId, passwordInput);
     if (localAuthUser) {
+      const solvedIds = localAuthUser.solvedProblemIds || [];
+      const { skillBreakdown, weakArea, recommendedTopic } = calculateSkillStats(solvedIds);
+      const computedRank = calculateGlobalRank(localAuthUser.username, localAuthUser.rating || 1200);
+
       const profile: UserProfile = {
         username: localAuthUser.username,
         name: localAuthUser.name,
@@ -128,21 +157,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         avatar: localAuthUser.avatar,
         title: localAuthUser.badge || 'Competitive Coder',
         rating: localAuthUser.rating,
-        globalRank: localAuthUser.rank,
-        totalSolved: localAuthUser.solvedCount,
-        solvedProblemIds: localAuthUser.solvedProblemIds || [],
+        globalRank: computedRank,
+        totalSolved: localAuthUser.solvedCount || solvedIds.length || 0,
+        solvedProblemIds: solvedIds,
         solvedStats: localAuthUser.solvedStats || {
           easy: 0, easyTotal: 820, medium: 0, mediumTotal: 1450, hard: 0, hardTotal: 680
         },
-        streakDays: localAuthUser.streak,
+        streakDays: localAuthUser.streak || 1,
         level: localAuthUser.level || 1,
         currentXP: localAuthUser.currentXP || 0,
         nextLevelXP: localAuthUser.nextLevelXP || 1000,
-        weakArea: 'Dynamic Programming',
-        recommendedTopic: 'Practice array and dynamic programming challenges.',
-        skillBreakdown: {
-          'Arrays': 50, 'Strings': 40, 'Trees': 30, 'Graphs': 20, 'Dynamic Programming': 10, 'SQL': 40, 'Algorithms': 45, 'Binary Search': 35, 'Stack': 40, 'Hash Table': 50, 'Math': 30, 'Heap': 25
-        },
+        weakArea,
+        recommendedTopic,
+        skillBreakdown,
         achievements: [
           { id: 'first-sub', title: 'First Steps', description: 'Joined NimoCode AI platform.', icon: '🚀', unlocked: true }
         ],
@@ -159,10 +186,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
-
   const signup = (name: string, email: string, username: string, passwordInput: string): boolean => {
     const createdUser = db.addUser({ name, email, username, password: passwordInput });
     if (createdUser) {
+      const { skillBreakdown, weakArea, recommendedTopic } = calculateSkillStats([]);
+      const computedRank = calculateGlobalRank(createdUser.username, createdUser.rating || 1200);
+
       const profile: UserProfile = {
         username: createdUser.username,
         name: createdUser.name,
@@ -170,7 +199,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         avatar: createdUser.avatar,
         title: 'New Challenger',
         rating: createdUser.rating,
-        globalRank: createdUser.rank,
+        globalRank: computedRank,
         totalSolved: 0,
         solvedProblemIds: [],
         solvedStats: {
@@ -180,11 +209,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         level: 1,
         currentXP: 0,
         nextLevelXP: 1000,
-        weakArea: 'Arrays',
-        recommendedTopic: 'Start solving Easy Array challenges.',
-        skillBreakdown: {
-          'Arrays': 0, 'Strings': 0, 'Trees': 0, 'Graphs': 0, 'Dynamic Programming': 0, 'SQL': 0, 'Algorithms': 0, 'Binary Search': 0, 'Stack': 0, 'Hash Table': 0, 'Math': 0, 'Heap': 0
-        },
+        weakArea,
+        recommendedTopic,
+        skillBreakdown,
         achievements: [
           { id: 'first-sub', title: 'New Challenger', description: 'Registered real NimoCode account.', icon: '🚀', unlocked: true }
         ],
@@ -208,6 +235,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await res.json();
       if (!data.user) return false;
       const u = data.user;
+      const solvedIds = u.solvedProblemIds || [];
+      const { skillBreakdown, weakArea, recommendedTopic } = calculateSkillStats(solvedIds);
+      const computedRank = calculateGlobalRank(u.username, u.rating || 1200);
+
       const profile: UserProfile = {
         username: u.username,
         name: u.name,
@@ -215,17 +246,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         avatar: u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.username}`,
         title: u.badge || 'Google Member',
         rating: u.rating || 1200,
-        globalRank: u.rank || 9999,
-        totalSolved: u.solvedCount || 0,
-        solvedProblemIds: u.solvedProblemIds || [],
+        globalRank: computedRank,
+        totalSolved: u.solvedCount || solvedIds.length || 0,
+        solvedProblemIds: solvedIds,
         solvedStats: u.solvedStats || { easy: 0, easyTotal: 820, medium: 0, mediumTotal: 1450, hard: 0, hardTotal: 680 },
         streakDays: u.streak || 1,
         level: u.level || 1,
         currentXP: u.currentXP || 0,
         nextLevelXP: u.nextLevelXP || 1000,
-        weakArea: 'Arrays',
-        recommendedTopic: 'Start with Easy Array problems.',
-        skillBreakdown: { 'Arrays': 10, 'Strings': 10, 'Trees': 5, 'Graphs': 5, 'Dynamic Programming': 5, 'SQL': 5, 'Algorithms': 10, 'Binary Search': 5, 'Stack': 10, 'Hash Table': 10, 'Math': 10, 'Heap': 5 },
+        weakArea,
+        recommendedTopic,
+        skillBreakdown,
         achievements: [{ id: 'google-join', title: 'Google Member', description: 'Signed in with Google.', icon: '🔵', unlocked: true }],
         submissionHeatmap: {}
       };
@@ -279,14 +310,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       newNextXP += 1000;
     }
 
+    const { skillBreakdown, weakArea, recommendedTopic } = calculateSkillStats(newSolvedIds);
+    const newRank = calculateGlobalRank(user.username, newRating);
+
     const updatedProfile: UserProfile = {
       ...user,
       totalSolved: newTotal,
       rating: newRating,
+      globalRank: newRank,
       solvedProblemIds: newSolvedIds,
       currentXP: newXP,
       level: newLevel,
       nextLevelXP: newNextXP,
+      weakArea,
+      recommendedTopic,
+      skillBreakdown,
       solvedStats: {
         ...user.solvedStats,
         easy: difficulty === 'Easy' ? user.solvedStats.easy + 1 : user.solvedStats.easy,
@@ -307,6 +345,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       solvedProblemIds: newSolvedIds
     });
   };
+
 
   return (
     <AuthContext.Provider
