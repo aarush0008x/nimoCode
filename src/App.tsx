@@ -29,6 +29,10 @@ import { ContactPage } from './pages/ContactPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { AssessmentsPage } from './pages/AssessmentsPage';
+import { ResumeAnalyzerPage } from './pages/ResumeAnalyzerPage';
+
+
+
 
 export const App: React.FC = () => {
   return (
@@ -50,7 +54,9 @@ export const App: React.FC = () => {
                   <Route path="/duels/:matchId" element={<DuelRoomPage />} />
                   <Route path="/interview" element={<MockInterviewPage />} />
                   <Route path="/assessments" element={<AssessmentsPage />} />
+                  <Route path="/resume-analyzer" element={<ResumeAnalyzerPage />} />
                   <Route path="/system-design" element={<SystemDesignPage />} />
+
                   <Route path="/pair" element={<PairRoomPage />} />
                   <Route path="/pair/:roomId" element={<PairRoomPage />} />
                   <Route path="/contact" element={<ContactPage />} />

@@ -14,8 +14,10 @@ import {
   Trophy,
   Zap,
   Lock,
-  UserCheck
+  UserCheck,
+  Eye
 } from 'lucide-react';
+
 import { useDb } from '../context/DbContext';
 import { DifficultyBadge } from '../components/common/DifficultyBadge';
 import { CodeEditor } from '../components/problem/CodeEditor';
@@ -25,9 +27,10 @@ import { SolutionExplorer } from '../components/problem/SolutionExplorer';
 import { ProblemDiscussion } from '../components/problem/ProblemDiscussion';
 import { ProblemTimer } from '../components/problem/ProblemTimer';
 import { AICodeReviewModal } from '../components/problem/AICodeReviewModal';
-
 import { AIDebuggerModal } from '../components/problem/AIDebuggerModal';
+import { AlgorithmVisualizerModal } from '../components/problem/AlgorithmVisualizerModal';
 import type { ProgrammingLanguage, Submission } from '../types';
+
 import { runCodeExecution } from '../utils/codeRunner';
 import { useAuth } from '../context/AuthContext';
 import confetti from 'canvas-confetti';
@@ -55,6 +58,8 @@ export const ProblemDetailPage: React.FC = () => {
   const [showAIDebugger, setShowAIDebugger] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showAIReviewModal, setShowAIReviewModal] = useState(false);
+  const [showVisualizerModal, setShowVisualizerModal] = useState(false);
+
 
   const handleLanguageChange = (newLang: ProgrammingLanguage) => {
     setSelectedLang(newLang);
@@ -190,6 +195,14 @@ export const ProblemDetailPage: React.FC = () => {
           )}
 
           <button
+            onClick={() => setShowVisualizerModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-all shadow-xs"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Algorithm Visualizer</span>
+          </button>
+
+          <button
             onClick={() => setShowAIReviewModal(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-bold hover:bg-amber-500/20 transition-all shadow-xs"
           >
@@ -210,6 +223,7 @@ export const ProblemDetailPage: React.FC = () => {
           </button>
         </div>
       </div>
+
 
       {/* Main Split Grid Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-[680px]">
@@ -494,6 +508,15 @@ export const ProblemDetailPage: React.FC = () => {
           onClose={() => setShowAIDebugger(false)}
         />
       )}
+
+      {/* ALGORITHM VISUALIZER MODAL */}
+      {showVisualizerModal && (
+        <AlgorithmVisualizerModal
+          problem={problem}
+          onClose={() => setShowVisualizerModal(false)}
+        />
+      )}
     </div>
   );
+
 };

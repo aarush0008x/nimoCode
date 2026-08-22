@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Users,
@@ -14,7 +14,8 @@ import {
   BookOpen,
   Edit3,
   Copy,
-  LogOut
+  LogOut,
+  Radio
 } from 'lucide-react';
 import { CodeEditor } from '../components/problem/CodeEditor';
 import { SubmissionResult } from '../components/problem/SubmissionResult';
@@ -22,7 +23,9 @@ import { useDb } from '../context/DbContext';
 import { useAuth } from '../context/AuthContext';
 import type { Problem, ProgrammingLanguage, Submission, Difficulty } from '../types';
 import { runCodeExecution } from '../utils/codeRunner';
+import { WebRTCVoiceChannel, type VoiceChannelState } from '../utils/webrtcAudio';
 import { ScrollReveal } from '../components/common/ScrollReveal';
+
 
 export const PairRoomPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -128,10 +131,18 @@ int main() {
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
-  const [isVoiceConnected, setIsVoiceConnected] = useState(false);
   const [leftTab, setLeftTab] = useState<'problem' | 'notes'>('problem');
   const [peerNotes, setPeerNotes] = useState('');
   const [showSwitchModal, setShowSwitchModal] = useState(false);
+
+  // WebRTC Real-Time Voice State
+  const [voiceState, setVoiceState] = useState<VoiceChannelState>({
+    isConnected: false,
+    isMuted: false,
+    audioLevel: 0,
+    peerCount: 1
+  });
+  const voiceChannelRef = useRef<WebRTCVoiceChannel | null>(null);
 
   useEffect(() => {
     if (!roomId) return;
@@ -165,16 +176,43 @@ int main() {
     }
   }, [roomId, problems]);
 
+  // Clean up WebRTC audio on unmount or room leave
+  useEffect(() => {
+    return () => {
+      if (voiceChannelRef.current) {
+        voiceChannelRef.current.disconnect();
+        voiceChannelRef.current = null;
+      }
+    };
+  }, []);
+
   const toggleWebRTCVoice = async () => {
-    if (!isVoiceConnected) {
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        setIsVoiceConnected(true);
-      } catch {
-        alert('Microphone permission is required for WebRTC Voice Channel.');
+    if (!voiceState.isConnected) {
+      const channel = new WebRTCVoiceChannel(roomId || 'default-room', (newState) => {
+        setVoiceState(newState);
+      });
+      voiceChannelRef.current = channel;
+      const success = await channel.connect();
+      if (!success && channel.state.error) {
+        alert(channel.state.error);
       }
     } else {
-      setIsVoiceConnected(false);
+      if (voiceChannelRef.current) {
+        voiceChannelRef.current.disconnect();
+        voiceChannelRef.current = null;
+      }
+      setVoiceState({
+        isConnected: false,
+        isMuted: false,
+        audioLevel: 0,
+        peerCount: 1
+      });
+    }
+  };
+
+  const toggleMute = () => {
+    if (voiceChannelRef.current) {
+      voiceChannelRef.current.toggleMute();
     }
   };
 
@@ -476,7 +514,7 @@ int main() {
                     </div>
                     <ul className="space-y-1 text-[11px] list-disc list-inside">
                       <li>Synchronized Monaco Editor in 6 programming languages.</li>
-                      <li>Interactive WebRTC Voice Channel with zero external plugins.</li>
+                      <li>Interactive WebRTC Voice Channel with live audio levels.</li>
                       <li>Live Compiler sandbox with testcase verification.</li>
                       <li>Interviewer feedback & complexity notes scratchpad.</li>
                     </ul>
@@ -540,17 +578,50 @@ int main() {
             <span>Change Problem / Custom Code</span>
           </button>
 
-          <button
-            onClick={toggleWebRTCVoice}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-bold font-mono transition-all flex items-center gap-1.5 ${
-              isVoiceConnected
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 animate-pulse'
-                : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
-            }`}
-          >
-            {isVoiceConnected ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
-            <span>{isVoiceConnected ? 'Voice Connected' : 'Enable WebRTC Audio'}</span>
-          </button>
+          {/* WebRTC Voice Channel Status & Controls */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={toggleWebRTCVoice}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-bold font-mono transition-all flex items-center gap-2 ${
+                voiceState.isConnected
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm'
+                  : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
+              }`}
+            >
+              {voiceState.isConnected ? <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-400" /> : <MicOff className="w-3.5 h-3.5" />}
+              <span>{voiceState.isConnected ? 'Voice Connected' : 'Join Voice Channel'}</span>
+            </button>
+
+            {voiceState.isConnected && (
+              <>
+                <button
+                  onClick={toggleMute}
+                  className={`p-1.5 rounded-xl border text-xs transition-colors ${
+                    voiceState.isMuted
+                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                      : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white'
+                  }`}
+                  title={voiceState.isMuted ? 'Unmute Mic' : 'Mute Mic'}
+                >
+                  {voiceState.isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                </button>
+
+                {/* Live Audio Level Meter */}
+                <div className="flex items-center gap-0.5 px-2 py-1 bg-neutral-900 rounded-lg border border-neutral-800" title={`Audio Level: ${voiceState.audioLevel}%`}>
+                  {[20, 40, 60, 80, 100].map((threshold, idx) => (
+                    <span
+                      key={idx}
+                      className={`w-1 rounded-full transition-all duration-75 ${
+                        voiceState.audioLevel >= threshold
+                          ? 'h-3.5 bg-emerald-400'
+                          : 'h-1.5 bg-neutral-700'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
 
           <button
             onClick={handleShareRoom}

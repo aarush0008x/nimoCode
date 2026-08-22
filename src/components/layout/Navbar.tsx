@@ -167,6 +167,18 @@ export const Navbar: React.FC = () => {
                   </Link>
 
                   <Link
+                    to="/resume-analyzer"
+                    onClick={() => setAiMenuOpen(false)}
+                    className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-bold text-neutral-900 dark:text-white transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4 text-pink-500" />
+                    <div>
+                      <div>AI Resume Analyzer</div>
+                      <div className="text-[10px] text-neutral-400 font-normal font-mono">FAANG Skill Gap Scan</div>
+                    </div>
+                  </Link>
+
+                  <Link
                     to="/pair"
                     onClick={() => setAiMenuOpen(false)}
                     className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-bold text-neutral-900 dark:text-white transition-colors"
@@ -178,6 +190,7 @@ export const Navbar: React.FC = () => {
                     </div>
                   </Link>
                 </div>
+
               )}
             </div>
 
