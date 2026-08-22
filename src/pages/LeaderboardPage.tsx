@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
-import { Trophy, Search } from 'lucide-react';
+import { Trophy, Search, RefreshCw } from 'lucide-react';
 import { useDb } from '../context/DbContext';
 import { PodiumCard } from '../components/leaderboard/PodiumCard';
 import { LeaderboardTable } from '../components/leaderboard/LeaderboardTable';
 
 export const LeaderboardPage: React.FC = () => {
-  const { users } = useDb();
+  const { users, refreshDb } = useDb();
   const [activeTab, setActiveTab] = useState<'Global' | 'Weekly' | 'Monthly' | 'College' | 'Friends'>('Global');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleManualRefresh = () => {
+    setIsRefreshing(true);
+    refreshDb();
+    setTimeout(() => setIsRefreshing(false), 800);
+  };
 
   const filteredEntries = users.filter(
     e =>
@@ -24,11 +31,24 @@ export const LeaderboardPage: React.FC = () => {
           NIMOCODE HALL OF FAME
         </div>
         <h1 className="text-4xl sm:text-5xl font-extrabold text-neutral-950 dark:text-white tracking-tight">
-          Global Rankings
+          Global Leaderboard
         </h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-xl mx-auto font-medium">
-          Dynamically calculated in real-time from all registered developers and problem solvers on NimoCode.
+          Dynamically calculated in real-time from all registered developers and competitive problem solvers across MongoDB Atlas.
         </p>
+
+        {/* Realtime Live Sync Badge */}
+        <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-mono font-bold">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Live MongoDB Atlas Sync • {users.length} Registered Coder{users.length !== 1 ? 's' : ''}</span>
+          <button
+            onClick={handleManualRefresh}
+            title="Refresh Leaderboard"
+            className="p-1 hover:bg-emerald-500/20 rounded-lg transition-colors ml-1"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {/* Podium Cards Top 3 */}
@@ -77,3 +97,4 @@ export const LeaderboardPage: React.FC = () => {
     </div>
   );
 };
+

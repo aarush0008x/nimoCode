@@ -56,7 +56,6 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
           const apiUsers = await res.json();
           if (Array.isArray(apiUsers) && apiUsers.length > 0) {
             const localUsers = db.getUsers();
-            // Merge API users & local users cleanly by username
             const map = new Map();
             localUsers.forEach(u => map.set(u.username.toLowerCase(), u));
             apiUsers.forEach(u => {
@@ -85,7 +84,7 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
               }
             });
 
-            const merged = Array.from(map.values()).sort((a, b) => b.rating - a.rating);
+            const merged = Array.from(map.values()).sort((a, b) => (b.rating || 1200) - (a.rating || 1200));
             const ranked = merged.map((user, idx) => ({ ...user, rank: idx + 1 }));
             setUsers(ranked);
             localStorage.setItem('nimocode_users', JSON.stringify(ranked));
@@ -94,18 +93,55 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       } catch {}
     };
 
+    const fetchLiveContests = async () => {
+      try {
+        const res = await fetch(getApiUrl('/contests'));
+        if (res.ok) {
+          const apiContests = await res.json();
+          if (Array.isArray(apiContests) && apiContests.length > 0) {
+            const local = db.getContests();
+            const map = new Map();
+            local.forEach(c => map.set(c.id, c));
+            apiContests.forEach(c => map.set(c.id, c));
+            const merged = Array.from(map.values());
+            setContests(merged);
+            localStorage.setItem('nimocode_contests_v1', JSON.stringify(merged));
+          }
+        }
+      } catch {}
+    };
+
     fetchLiveUsers();
+    fetchLiveContests();
+
+    const interval = setInterval(() => {
+      fetchLiveUsers();
+      fetchLiveContests();
+    }, 4000);
 
     const handleDbUpdate = () => {
       refreshDb();
       fetchLiveUsers();
+      fetchLiveContests();
     };
 
     window.addEventListener('nimocode_db_update', handleDbUpdate);
     return () => {
+      clearInterval(interval);
       window.removeEventListener('nimocode_db_update', handleDbUpdate);
     };
   }, []);
+
+  const handleAddContest = (contestData: Omit<Contest, 'id' | 'participantsCount'>): Contest => {
+    const created = db.addContest(contestData);
+    // Remote sync
+    fetch(getApiUrl('/contests'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(created)
+    }).catch(() => {});
+    return created;
+  };
 
   return (
     <DbContext.Provider
@@ -120,7 +156,7 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         addProblem: db.addProblem,
         updateProblem: db.updateProblem,
         deleteProblem: db.deleteProblem,
-        addContest: db.addContest,
+        addContest: handleAddContest,
         updateContest: db.updateContest,
         deleteContest: db.deleteContest,
         updateUserRole: db.updateUserRole,
@@ -146,3 +182,4 @@ export const useDb = () => {
   }
   return context;
 };
+

@@ -717,12 +717,65 @@ app.get('/api/users', async (req, res) => {
   if (isConnected && mongoDb) {
     try {
       const users = await mongoDb.collection('users').find().sort({ rating: -1 }).toArray();
-      return res.json(users);
+      const mapped = users.map((u, idx) => ({
+        ...u,
+        rank: idx + 1,
+        name: u.name || u.username,
+        username: u.username,
+        email: u.email || `${u.username}@nimocode.ai`,
+        avatar: u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.username)}`,
+        rating: u.rating || 1200,
+        solvedCount: u.solvedCount || 0,
+        streak: u.streak || 1,
+        level: u.level || 1,
+        role: u.role || 'user'
+      }));
+      return res.json(mapped);
     } catch {}
   }
   const users = getCollection('users');
-  const sorted = [...users].sort((a, b) => b.rating - a.rating).map((u, i) => ({ ...u, rank: i + 1 }));
+  const sorted = [...users].sort((a, b) => (b.rating || 1200) - (a.rating || 1200)).map((u, i) => ({
+    ...u,
+    rank: i + 1,
+    name: u.name || u.username,
+    avatar: u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.username)}`,
+    rating: u.rating || 1200,
+    solvedCount: u.solvedCount || 0
+  }));
   res.json(sorted);
+});
+
+// CONTESTS
+app.get('/api/contests', async (req, res) => {
+  if (isConnected && mongoDb) {
+    try {
+      const contests = await mongoDb.collection('contests').find().sort({ _id: -1 }).toArray();
+      return res.json(contests);
+    } catch {}
+  }
+  const contests = getCollection('contests');
+  res.json(contests);
+});
+
+app.post('/api/contests', async (req, res) => {
+  const newContest = {
+    _id: `contest-${Date.now()}`,
+    id: `contest-${Date.now()}`,
+    ...req.body,
+    createdAt: new Date().toISOString()
+  };
+
+  if (isConnected && mongoDb) {
+    try {
+      await mongoDb.collection('contests').insertOne(newContest);
+      return res.status(201).json(newContest);
+    } catch {}
+  }
+
+  const contests = getCollection('contests');
+  contests.unshift(newContest);
+  saveCollection('contests', contests);
+  res.status(201).json(newContest);
 });
 
 // SUBMISSIONS
