@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Swords, Trophy, Clock, ChevronLeft, ArrowRight, Zap, Users, Copy, Check } from 'lucide-react';
+import { Swords, Trophy, Clock, ChevronLeft, ArrowRight, Eye, MessageSquare, Copy, Check } from 'lucide-react';
 import { useDb } from '../context/DbContext';
 import { useAuth } from '../context/AuthContext';
+
 import { CodeEditor } from '../components/problem/CodeEditor';
 import { SubmissionResult } from '../components/problem/SubmissionResult';
 import type { ProgrammingLanguage, Submission } from '../types';
@@ -22,7 +23,9 @@ export const DuelRoomPage: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [submission, setSubmission] = useState<Submission | null>(null);
 
-  // Match State
+  // Match State & Spectator Mode
+  const [isSpectator, setIsSpectator] = useState(() => window.location.search.includes('spectate=true'));
+  const [spectatorReactions, setSpectatorReactions] = useState<{ id: string; emoji: string }[]>([]);
   const [timerSeconds, setTimerSeconds] = useState(600);
   const [matchWinner, setMatchWinner] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -69,7 +72,7 @@ export const DuelRoomPage: React.FC = () => {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [matchId, matchWinner]);
 
-  // 5. Determine Player Perspective (Am I Player 1 or Player 2?)
+  // 5. Determine Player Perspective
   const isPlayer1 = roomData?.player1?.username && user?.username
     ? roomData.player1.username.toLowerCase() === user.username.toLowerCase()
     : true;
@@ -79,71 +82,57 @@ export const DuelRoomPage: React.FC = () => {
 
   const handleLanguageChange = (newLang: ProgrammingLanguage) => {
     setSelectedLang(newLang);
-    setCode(problem.starterCode[newLang] || '');
-  };
-
-  const handleResetCode = () => {
-    setCode(problem.starterCode[selectedLang] || '');
-    setSubmission(null);
+    setCode(problem.starterCode[newLang] || '// Write solution code here');
   };
 
   const handleRunCode = async () => {
     setIsRunning(true);
-    const result = await runCodeExecution({ problem, language: selectedLang, code, isSubmission: false });
+    const result = await runCodeExecution({
+      problem,
+      language: selectedLang,
+      code,
+      isSubmission: false
+    });
     setSubmission(result);
     setIsRunning(false);
-
-    // Sync live progress with server
-    if (matchId) {
-      try {
-        await fetch(getApiUrl(`/duels/${matchId}/progress`), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: user?.username || myPlayer?.username || 'Guest',
-            status: result.status === 'Accepted' ? 'Passed Sample Tests ⚡' : `Tests: ${result.passedCases}/${result.totalCases}`,
-            testCasesPassed: result.passedCases || 0,
-            totalCases: result.totalCases || 2
-          })
-        });
-      } catch {}
-    }
   };
 
   const handleSubmitCode = async () => {
     setIsRunning(true);
-    const result = await runCodeExecution({ problem, language: selectedLang, code, isSubmission: true });
+    const result = await runCodeExecution({
+      problem,
+      language: selectedLang,
+      code,
+      isSubmission: true
+    });
     setSubmission(result);
     setIsRunning(false);
 
     if (result.status === 'Accepted') {
-      const winnerName = user?.username || myPlayer?.username || 'Player';
-      setMatchWinner(winnerName);
-      markProblemSolved(problem.id, problem.difficulty);
+      try {
+        await markProblemSolved(problem.id, problem.difficulty);
+      } catch {}
+
+      try {
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.6 }
+        });
+      } catch {}
+
+      setMatchWinner(user?.username || 'You');
 
       if (matchId) {
         try {
           await fetch(getApiUrl(`/duels/${matchId}/submit`), {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ winner: winnerName })
-          });
-        } catch {}
-      }
-
-      confetti({ particleCount: 140, spread: 100, origin: { y: 0.5 } });
-    } else {
-      // Sync attempt progress
-      if (matchId) {
-        try {
-          await fetch(getApiUrl(`/duels/${matchId}/progress`), {
-            method: 'PUT',
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              username: user?.username || myPlayer?.username || 'Guest',
-              status: `Attempt: ${result.passedCases}/${result.totalCases} cases`,
-              testCasesPassed: result.passedCases || 0,
-              totalCases: result.totalCases || 42
+              username: user?.username || 'You',
+              passedCases: result.passedCases,
+              totalCases: result.totalCases,
+              status: 'Accepted'
             })
           });
         } catch {}
@@ -158,6 +147,14 @@ export const DuelRoomPage: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleSendReaction = (emoji: string) => {
+    const reaction = { id: `${Date.now()}-${Math.random()}`, emoji };
+    setSpectatorReactions(prev => [...prev, reaction]);
+    setTimeout(() => {
+      setSpectatorReactions(prev => prev.filter(r => r.id !== reaction.id));
+    }, 2500);
+  };
+
   const formatTimer = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
@@ -170,7 +167,16 @@ export const DuelRoomPage: React.FC = () => {
   );
 
   return (
-    <div className="pt-20 pb-12 px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto min-h-[calc(100vh-80px)] space-y-4">
+    <div className="pt-20 pb-12 px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto min-h-[calc(100vh-80px)] space-y-4 relative">
+      {/* Floating Spectator Reactions */}
+      <div className="fixed bottom-20 right-10 z-50 pointer-events-none flex flex-col gap-2">
+        {spectatorReactions.map(r => (
+          <div key={r.id} className="text-4xl animate-bounce">
+            {r.emoji}
+          </div>
+        ))}
+      </div>
+
       {/* Match Header */}
       <div className="p-4 rounded-2xl bg-neutral-950 text-white border border-neutral-800 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
         <div className="flex items-center gap-3">
@@ -181,18 +187,42 @@ export const DuelRoomPage: React.FC = () => {
             <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 font-mono uppercase">
               <Swords className="w-4 h-4" />
               1v1 REALTIME DUEL • #{problem.number || problem.id} {problem.title}
+              {isSpectator && (
+                <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 text-[10px] flex items-center gap-1">
+                  <Eye className="w-3 h-3" />
+                  SPECTATOR BROADCAST
+                </span>
+              )}
             </div>
             <div className="text-[11px] text-neutral-400 flex items-center gap-2 mt-0.5">
               <span>Difficulty: <strong className={problem.difficulty === 'Hard' ? 'text-rose-400' : problem.difficulty === 'Medium' ? 'text-amber-400' : 'text-emerald-400'}>{problem.difficulty}</strong></span>
               {roomData?.code && (
-                <span className="font-mono text-neutral-500">| Room Code: <strong className="text-amber-400 font-bold">{roomData.code}</strong></span>
+                <span className="font-mono text-neutral-500 flex items-center gap-1">
+                  | Room Code: <strong className="text-amber-400 font-bold">{roomData.code}</strong>
+                  <button onClick={handleCopyRoomCode} className="p-1 hover:text-white" title="Copy code">
+                    {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </span>
               )}
+
             </div>
           </div>
         </div>
 
-        {/* Live Timer & Stakes */}
-        <div className="flex items-center gap-6 text-xs font-mono">
+        {/* Live Timer, Spectator Toggle & Stakes */}
+        <div className="flex items-center gap-4 text-xs font-mono">
+          <button
+            onClick={() => setIsSpectator(!isSpectator)}
+            className={`px-3 py-1.5 rounded-xl border font-bold transition-all flex items-center gap-1.5 ${
+              isSpectator
+                ? 'bg-purple-500/20 text-purple-400 border-purple-500/40'
+                : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>{isSpectator ? 'Spectating' : 'Spectator View'}</span>
+          </button>
+
           <div className="flex items-center gap-1.5 text-neutral-300">
             <Clock className="w-4 h-4 text-neutral-400" />
             <span className="font-bold text-amber-400 text-sm">{formatTimer(timerSeconds)}</span>
@@ -205,11 +235,31 @@ export const DuelRoomPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Spectator Reaction Bar */}
+      {isSpectator && (
+        <div className="p-3 rounded-2xl bg-neutral-900 border border-purple-500/20 flex items-center justify-between gap-4 text-xs font-mono">
+          <span className="text-neutral-400 flex items-center gap-1.5">
+            <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
+            Spectator Cheering Reactions:
+          </span>
+          <div className="flex items-center gap-2">
+            {['🔥', '👏', '⚡', '🤯', '🚀', '💯'].map(emoji => (
+              <button
+                key={emoji}
+                onClick={() => handleSendReaction(emoji)}
+                className="p-1.5 px-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:scale-125 transition-transform text-base"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Arena Workspace Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-[660px]">
         {/* Left Panel: Problem Statement & Opponent Live Card */}
         <div className="lg:col-span-5 flex flex-col space-y-4">
-          {/* Live Opponent Progress Card */}
           <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-3 shadow-xs">
             <div className="flex items-center justify-between text-xs font-bold">
               <span className="text-neutral-500 uppercase tracking-wider text-[10px]">Realtime Opponent Status</span>
@@ -218,87 +268,70 @@ export const DuelRoomPage: React.FC = () => {
                   ? 'bg-emerald-500/10 text-emerald-500'
                   : 'bg-amber-500/10 text-amber-500 animate-pulse'
               }`}>
-                {opponent ? '🟢 LIVE OPPONENT CONNECTED' : '⏳ WAITING FOR OPPONENT TO JOIN'}
+                {opponent ? '● Connected' : '⏳ Waiting for Opponent'}
               </span>
             </div>
 
-            {opponent ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center justify-center text-xs overflow-hidden border border-neutral-200 dark:border-neutral-700">
-                    {opponent.avatar ? (
-                      <img src={opponent.avatar} className="w-full h-full object-cover" alt="" />
-                    ) : (
-                      <span>{opponent.username?.[0]?.toUpperCase() || 'O'}</span>
-                    )}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center font-bold text-sm">
+                  {opponent?.username ? opponent.username.charAt(0).toUpperCase() : '?'}
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-neutral-900 dark:text-white">
+                    {opponent?.username || 'Searching peer...'}
                   </div>
-                  <div>
-                    <div className="text-xs font-extrabold text-neutral-950 dark:text-white flex items-center gap-1.5">
-                      <span>@{opponent.username}</span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-500 font-mono">Opponent</span>
-                    </div>
-                    <div className="text-[10px] text-neutral-400 font-mono">{opponent.rating || 1200} ELO Rating</div>
+                  <div className="text-[11px] font-mono text-neutral-500">
+                    Rating: {opponent?.rating || '1,450'}
                   </div>
                 </div>
+              </div>
 
-                <div className="text-right font-mono text-xs">
-                  <div className="font-bold text-neutral-800 dark:text-neutral-200">
-                    {roomData?.winner ? `🏆 @${roomData.winner} submitted` : (opponent.status || 'Coding...')}
-                  </div>
-                  <div className="text-[10px] text-neutral-400">
-                    Passed: <strong className="text-amber-500">{opponent.testCasesPassed || 0}</strong>/{opponent.totalCases || 2} Test Cases
-                  </div>
+              <div className="text-right">
+                <div className="text-[10px] font-mono uppercase text-neutral-400">Cases Passed</div>
+                <div className="text-sm font-extrabold font-mono text-amber-500">
+                  {opponent?.passedCases !== undefined ? `${opponent.passedCases} / ${opponent.totalCases || 1}` : '0 / 1'}
                 </div>
               </div>
-            ) : (
-              <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-300 dark:border-neutral-800 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center">
-                    <Users className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-neutral-950 dark:text-white">Waiting for real player...</div>
-                    <div className="text-[10px] text-neutral-500">Share code with a friend to duel</div>
-                  </div>
-                </div>
-                {roomData?.code && (
-                  <button
-                    onClick={handleCopyRoomCode}
-                    className="px-3 py-1.5 rounded-lg bg-neutral-950 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-950 font-mono text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
-                  >
-                    {copied ? <><Check className="w-3 h-3" /> Copied</> : <><Copy className="w-3 h-3" /> {roomData.code}</>}
-                  </button>
-                )}
-              </div>
-            )}
+            </div>
+
+            <div className="h-1.5 w-full rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+              <div
+                style={{ width: opponent?.passedCases ? `${(opponent.passedCases / (opponent.totalCases || 1)) * 100}%` : '0%' }}
+                className="h-full bg-amber-500 rounded-full transition-all duration-500"
+              />
+            </div>
           </div>
 
-          {/* Problem Details */}
-          <div className="flex-1 p-5 bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-y-auto max-h-[580px] space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-neutral-950 dark:text-white">#{problem.number || problem.id} {problem.title}</h2>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
-                problem.difficulty === 'Hard' ? 'text-rose-500 bg-rose-500/10' : problem.difficulty === 'Medium' ? 'text-amber-500 bg-amber-500/10' : 'text-emerald-500 bg-emerald-500/10'
-              }`}>{problem.difficulty}</span>
+          {/* Problem Statement Card */}
+          <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex-1 overflow-y-auto max-h-[500px] space-y-4 shadow-xs text-left">
+            <div>
+              <div className="text-xs font-mono text-neutral-400 font-bold uppercase tracking-wider">PROBLEM STATEMENT</div>
+              <h2 className="text-lg font-bold text-neutral-950 dark:text-white mt-1">
+                #{problem.number || problem.id} {problem.title}
+              </h2>
             </div>
-            <div className="whitespace-pre-wrap text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
+
+            <div className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap font-medium">
               {problem.description}
             </div>
 
-            <div className="space-y-2 pt-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Sample Test Cases &amp; Examples</h4>
-              {problem.examples?.map((ex: any, idx: number) => (
-                <div key={idx} className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs font-mono">
-                  <div>Input: {ex.input}</div>
-                  <div className="text-emerald-500 font-bold">Output: {ex.output}</div>
-                  {ex.explanation && <div className="text-neutral-400 text-[11px] mt-1">{ex.explanation}</div>}
-                </div>
-              ))}
-            </div>
+            {problem.examples && problem.examples.length > 0 && (
+              <div className="space-y-2 pt-2">
+                <div className="text-[11px] font-mono font-bold text-neutral-400 uppercase">Examples</div>
+                {problem.examples.map((ex: any, idx: number) => (
+                  <div key={idx} className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 font-mono text-xs space-y-1">
+
+                    <div className="text-neutral-500">Input: {ex.input}</div>
+                    <div className="text-emerald-600 dark:text-emerald-400 font-bold">Output: {ex.output}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right Panel: Code Editor */}
+        {/* Right Panel: Code Editor & Live Console */}
         <div className="lg:col-span-7 flex flex-col space-y-4">
           <div className="flex-1 min-h-[460px]">
             <CodeEditor
@@ -306,7 +339,7 @@ export const DuelRoomPage: React.FC = () => {
               code={code}
               onChange={setCode}
               onLanguageChange={handleLanguageChange}
-              onReset={handleResetCode}
+              onReset={() => setCode(problem.starterCode[selectedLang] || '')}
               onRun={handleRunCode}
               onSubmit={handleSubmitCode}
               isRunning={isRunning}
@@ -319,57 +352,36 @@ export const DuelRoomPage: React.FC = () => {
         </div>
       </div>
 
-      {/* VICTORY / DEFEAT MODAL */}
+      {/* Victory / Defeat Modal */}
       {matchWinner && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 w-full max-w-lg space-y-6 shadow-2xl animate-fade-in text-center">
-            {isMyVictory ? (
-              <div className="w-16 h-16 rounded-3xl bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center mx-auto shadow-inner">
-                <Trophy className="w-8 h-8" />
-              </div>
-            ) : (
-              <div className="w-16 h-16 rounded-3xl bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center mx-auto shadow-inner">
-                <Swords className="w-8 h-8" />
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <span className={`px-3 py-1 rounded-full font-mono text-xs font-bold border ${
-                isMyVictory ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-              }`}>
-                {isMyVictory ? 'VICTORY CLAIMED 🏆' : 'MATCH CONCLUDED ⚔️'}
-              </span>
-              <h2 className="text-2xl font-extrabold text-neutral-950 dark:text-white pt-2">
-                {isMyVictory ? 'You Won the 1v1 Code Duel!' : `@${matchWinner} Won the Match!`}
-              </h2>
-              <p className="text-xs text-neutral-500">
-                {isMyVictory
-                  ? 'You submitted the accepted solution before your opponent and claimed the match victory.'
-                  : `@${matchWinner} submitted a passing solution first. Practice more and challenge again!`
-                }
-              </p>
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-neutral-950 border border-neutral-800 rounded-3xl p-8 max-w-md w-full text-center space-y-6 animate-scale-up shadow-2xl text-white">
+            <div className={`w-20 h-20 rounded-3xl mx-auto flex items-center justify-center text-4xl shadow-lg ${
+              isMyVictory ? 'bg-amber-500/20 border-2 border-amber-500 text-amber-400' : 'bg-rose-500/20 border-2 border-rose-500 text-rose-400'
+            }`}>
+              {isMyVictory ? '🏆' : '💀'}
             </div>
 
-            <div className={`p-4 rounded-2xl border text-xs font-mono font-bold flex items-center justify-center gap-2 ${
-              isMyVictory
-                ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
-                : 'bg-neutral-100 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-neutral-400'
-            }`}>
-              <Zap className="w-4 h-4 fill-current" />
-              <span>
+            <div className="space-y-2">
+              <div className="text-xs font-mono font-bold uppercase tracking-widest text-amber-400">
+                1v1 DUEL CONCLUDED
+              </div>
+              <h2 className="text-3xl font-extrabold tracking-tight">
+                {isMyVictory ? 'Victory!' : 'Match Finished'}
+              </h2>
+              <p className="text-xs text-neutral-400">
                 {isMyVictory
-                  ? `+${roomData?.ratingStakes || 30} ELO Rating Gained • New Rating: ${(user?.rating || 1200) + (roomData?.ratingStakes || 30)}`
-                  : `Rating Stake Concluded • Practice to reclaim your rank`
-                }
-              </span>
+                  ? `Outstanding! You solved the problem first and earned +${roomData?.ratingStakes || 35} ELO Rating.`
+                  : `${matchWinner} solved the challenge first. Better luck next duel!`}
+              </p>
             </div>
 
             <div className="flex items-center justify-center gap-3 pt-2">
               <Link
                 to="/duels"
-                className="px-6 py-2.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-950 font-bold text-xs shadow-md flex items-center gap-2"
+                className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-neutral-950 font-extrabold text-xs shadow-md transition-all flex items-center gap-2"
               >
-                <span>Back to Duels Arena</span>
+                <span>Find Another Duel</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
@@ -379,4 +391,3 @@ export const DuelRoomPage: React.FC = () => {
     </div>
   );
 };
-

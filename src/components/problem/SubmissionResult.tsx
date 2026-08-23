@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, XCircle, Clock, Cpu, Loader2, Sparkles } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, Cpu, Loader2, Sparkles, TrendingUp, FolderGit2 } from 'lucide-react';
 import type { Submission } from '../../types';
 import { formatTimeMs, formatMemoryMb } from '../../utils/formatters';
 
@@ -7,13 +7,18 @@ interface SubmissionResultProps {
   submission: Submission | null;
   isRunning: boolean;
   onAskAI?: (prompt: string) => void;
+  onOpenDistribution?: () => void;
+  onOpenGitHubSync?: () => void;
 }
 
 export const SubmissionResult: React.FC<SubmissionResultProps> = ({
   submission,
   isRunning,
-  onAskAI
+  onAskAI,
+  onOpenDistribution,
+  onOpenGitHubSync
 }) => {
+
   if (isRunning) {
     return (
       <div className="p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-center gap-3 shadow-xs">
@@ -99,8 +104,31 @@ export const SubmissionResult: React.FC<SubmissionResultProps> = ({
               </div>
             </div>
           </div>
+
+          <div className="col-span-2 sm:col-span-3 flex flex-wrap items-center gap-2 pt-1">
+            {onOpenDistribution && (
+              <button
+                onClick={onOpenDistribution}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white text-xs font-bold border border-neutral-300 dark:border-neutral-700 transition-all"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-amber-500" />
+                <span>Runtime Distribution (Bell Curve)</span>
+              </button>
+            )}
+
+            {onOpenGitHubSync && (
+              <button
+                onClick={onOpenGitHubSync}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white text-xs font-bold border border-neutral-300 dark:border-neutral-700 transition-all"
+              >
+                <FolderGit2 className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Sync to GitHub Repo</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
+
 
       {/* Output / Diff display for failed case */}
       {!isSuccess && (

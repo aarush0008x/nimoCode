@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Editor from '@monaco-editor/react';
-import { Play, Send, RotateCcw, Settings2, FileCode, Check } from 'lucide-react';
+import { Play, Send, RotateCcw, Settings2, FileCode, Check, Sparkles } from 'lucide-react';
 import type { ProgrammingLanguage } from '../../types';
 
 interface CodeEditorProps {
@@ -44,14 +44,39 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 }) => {
   const [minimap, setMinimap] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copilotEnabled, setCopilotEnabled] = useState(true);
   const [editorTheme, setEditorTheme] = useState<'vs-dark' | 'light'>('vs-dark');
   const [fontSize, setFontSize] = useState<number>(14);
+
+  const getCopilotSuggestion = () => {
+    if (!copilotEnabled) return null;
+    const lower = code.toLowerCase();
+    if (lower.includes('vector') && !lower.includes('unordered_map') && language === 'cpp') {
+      return 'unordered_map<int, int> lookupTable;';
+    }
+    if (lower.includes('for') && !lower.includes('return') && language === 'cpp') {
+      return 'if (lookupTable.find(complement) != lookupTable.end()) return {lookupTable[complement], i};';
+    }
+    if (language === 'python' && !lower.includes('def twoSum')) {
+      return 'seen = {}\n        for i, val in enumerate(nums):\n            if target - val in seen:\n                return [seen[target - val], i]\n            seen[val] = i';
+    }
+    return null;
+  };
+
+  const activeSuggestion = getCopilotSuggestion();
+
+  const handleApplyCopilot = () => {
+    if (activeSuggestion) {
+      onChange(code + (code.endsWith('\n') ? '' : '\n') + '        ' + activeSuggestion);
+    }
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
 
   return (
     <div className="flex flex-col h-full rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden shadow-xs">
@@ -100,6 +125,19 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
         {/* Toolbar Controls */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCopilotEnabled(!copilotEnabled)}
+            title="Toggle AI Copilot Suggestions"
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+              copilotEnabled
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                : 'border-neutral-200 dark:border-neutral-800 text-neutral-400 hover:text-neutral-200'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Copilot</span>
+          </button>
+
           <button
             onClick={() => setMinimap(!minimap)}
             title="Toggle Minimap"
@@ -169,7 +207,25 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             cursorBlinking: 'smooth'
           }}
         />
+
+        {/* AI Copilot Ghost Suggestion Pill */}
+        {activeSuggestion && (
+          <div className="absolute bottom-4 left-4 right-4 z-20 p-2.5 px-4 rounded-2xl bg-neutral-950/90 border border-amber-500/30 text-xs font-mono text-neutral-300 backdrop-blur-md flex items-center justify-between shadow-xl animate-fade-in">
+            <div className="flex items-center gap-2 truncate">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="text-neutral-400">AI Suggestion:</span>
+              <span className="text-amber-300 font-bold truncate">{activeSuggestion.split('\n')[0]}</span>
+            </div>
+            <button
+              onClick={handleApplyCopilot}
+              className="px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-neutral-950 text-[11px] font-extrabold transition-all shrink-0 ml-3"
+            >
+              Insert Tab ⇥
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
+

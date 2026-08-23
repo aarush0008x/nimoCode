@@ -29,7 +29,11 @@ import { ProblemTimer } from '../components/problem/ProblemTimer';
 import { AICodeReviewModal } from '../components/problem/AICodeReviewModal';
 import { AIDebuggerModal } from '../components/problem/AIDebuggerModal';
 import { AlgorithmVisualizerModal } from '../components/problem/AlgorithmVisualizerModal';
+
+import { RuntimeDistributionModal } from '../components/problem/RuntimeDistributionModal';
+import { GitHubSyncModal } from '../components/problem/GitHubSyncModal';
 import type { ProgrammingLanguage, Submission } from '../types';
+
 
 import { runCodeExecution } from '../utils/codeRunner';
 import { useAuth } from '../context/AuthContext';
@@ -59,6 +63,9 @@ export const ProblemDetailPage: React.FC = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showAIReviewModal, setShowAIReviewModal] = useState(false);
   const [showVisualizerModal, setShowVisualizerModal] = useState(false);
+  const [showDistributionModal, setShowDistributionModal] = useState(false);
+  const [showGitHubSyncModal, setShowGitHubSyncModal] = useState(false);
+
 
 
   const handleLanguageChange = (newLang: ProgrammingLanguage) => {
@@ -365,8 +372,14 @@ export const ProblemDetailPage: React.FC = () => {
 
               {/* Execution Console Results */}
               <div className="min-h-[160px]">
-                <SubmissionResult submission={submission} isRunning={isRunning} />
+                <SubmissionResult
+                  submission={submission}
+                  isRunning={isRunning}
+                  onOpenDistribution={() => setShowDistributionModal(true)}
+                  onOpenGitHubSync={() => setShowGitHubSyncModal(true)}
+                />
               </div>
+
             </>
           ) : (
             <div className="h-full min-h-[600px] bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
@@ -516,7 +529,25 @@ export const ProblemDetailPage: React.FC = () => {
           onClose={() => setShowVisualizerModal(false)}
         />
       )}
+
+      {/* RUNTIME BELL CURVE DISTRIBUTION MODAL */}
+      {showDistributionModal && submission && (
+        <RuntimeDistributionModal
+          submission={submission}
+          onClose={() => setShowDistributionModal(false)}
+        />
+      )}
+
+      {/* GITHUB 1-CLICK SYNC MODAL */}
+      {showGitHubSyncModal && submission && (
+        <GitHubSyncModal
+          problem={problem}
+          submission={submission}
+          onClose={() => setShowGitHubSyncModal(false)}
+        />
+      )}
     </div>
   );
+
 
 };

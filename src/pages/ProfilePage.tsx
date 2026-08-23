@@ -9,8 +9,10 @@ import {
   Edit3,
   GraduationCap,
   Globe,
-  Users
+  Users,
+  Trophy
 } from 'lucide-react';
+
 import { GitHubIcon, LinkedInIcon, TwitterIcon } from '../components/common/SocialIcons';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,7 +24,9 @@ import { CertificateModal } from '../components/profile/CertificateModal';
 import { DailyQuestsModal } from '../components/profile/DailyQuestsModal';
 import { EditProfileModal } from '../components/profile/EditProfileModal';
 import { FriendsSection } from '../components/profile/FriendsSection';
+import { SkillTreeModal } from '../components/profile/SkillTreeModal';
 import { getRankDivision } from '../utils/ranks';
+
 
 export const ProfilePage: React.FC = () => {
   const { user } = useAuth();
@@ -30,6 +34,8 @@ export const ProfilePage: React.FC = () => {
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [showQuestsModal, setShowQuestsModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [showSkillTreeModal, setShowSkillTreeModal] = useState(false);
+
 
 
   if (!user) {
@@ -213,6 +219,14 @@ export const ProfilePage: React.FC = () => {
               </button>
 
               <button
+                onClick={() => setShowSkillTreeModal(true)}
+                className="w-full py-2.5 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-neutral-950 font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                <Trophy className="w-4 h-4" />
+                <span>RPG Skill Tree</span>
+              </button>
+
+              <button
                 onClick={() => setShowQuestsModal(true)}
                 className="w-full py-2.5 px-4 rounded-2xl bg-neutral-900 hover:bg-neutral-800 text-white font-extrabold text-xs border border-neutral-800 transition-all flex items-center justify-center gap-2"
               >
@@ -220,6 +234,7 @@ export const ProfilePage: React.FC = () => {
                 <span>Daily Quests (+XP)</span>
               </button>
             </div>
+
           </div>
         </div>
 
@@ -405,7 +420,16 @@ export const ProfilePage: React.FC = () => {
           onClose={() => setShowQuestsModal(false)}
         />
       )}
+
+      {showSkillTreeModal && (
+        <SkillTreeModal
+          userSolvedCount={user.totalSolved}
+          userXP={user.currentXP}
+          onClose={() => setShowSkillTreeModal(false)}
+        />
+      )}
     </div>
   );
+
 };
 
