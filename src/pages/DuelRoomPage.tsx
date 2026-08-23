@@ -36,13 +36,19 @@ export const DuelRoomPage: React.FC = () => {
     || (roomData?.problemTitle && problems.find(p => roomData.problemTitle.includes(p.title)))
     || problems[0];
 
-  // 2. Initialize starter code once problem is known
+  // 2. Initialize starter/saved code once problem is known
   useEffect(() => {
     if (problem && (!codeInitialized || !code)) {
-      setCode(problem.starterCode[selectedLang] || '');
+      try {
+        const saved = localStorage.getItem(`nimocode_saved_code_${problem.id}_${selectedLang}`);
+        setCode(saved || problem.starterCode[selectedLang] || '');
+      } catch {
+        setCode(problem.starterCode[selectedLang] || '');
+      }
       setCodeInitialized(true);
     }
   }, [problem?.id, selectedLang, codeInitialized]);
+
 
   // 3. Timer countdown
   useEffect(() => {

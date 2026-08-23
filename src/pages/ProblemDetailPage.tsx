@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -51,9 +52,28 @@ export const ProblemDetailPage: React.FC = () => {
   const prevProblem = currentIndex > 0 ? problems[currentIndex - 1] : null;
   const nextProblem = currentIndex >= 0 && currentIndex < problems.length - 1 ? problems[currentIndex + 1] : null;
 
+  const getStorageKey = (probId: string | number, lang: ProgrammingLanguage) =>
+    `nimocode_saved_code_${probId}_${lang}`;
+
+  const loadSavedCode = (probId: string | number, lang: ProgrammingLanguage, fallback: string) => {
+    try {
+      const saved = localStorage.getItem(getStorageKey(probId, lang));
+      if (saved && saved.trim()) return saved;
+    } catch {}
+    return fallback;
+  };
+
+  const saveUserCode = (probId: string | number, lang: ProgrammingLanguage, codeToSave: string) => {
+    try {
+      localStorage.setItem(getStorageKey(probId, lang), codeToSave);
+    } catch {}
+  };
+
   const [activeTab, setActiveTab] = useState<'description' | 'solutions' | 'discussions'>('description');
   const [selectedLang, setSelectedLang] = useState<ProgrammingLanguage>('cpp');
-  const [code, setCode] = useState<string>(problem.starterCode.cpp);
+  const [code, setCode] = useState<string>(() =>
+    loadSavedCode(problem.id, 'cpp', problem.starterCode?.cpp || '// Write solution code here')
+  );
   const [isRunning, setIsRunning] = useState(false);
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [rightTab, setRightTab] = useState<'editor' | 'ai'>('editor');
@@ -66,17 +86,33 @@ export const ProblemDetailPage: React.FC = () => {
   const [showDistributionModal, setShowDistributionModal] = useState(false);
   const [showGitHubSyncModal, setShowGitHubSyncModal] = useState(false);
 
+  // Sync code whenever problem or selected language changes
+  useEffect(() => {
+    if (problem) {
+      const saved = loadSavedCode(problem.id, selectedLang, problem.starterCode?.[selectedLang] || '// Write solution code here');
+      setCode(saved);
+    }
+  }, [problem?.id, selectedLang]);
 
+  const handleCodeChange = (newCode: string) => {
+    setCode(newCode);
+    saveUserCode(problem.id, selectedLang, newCode);
+  };
 
   const handleLanguageChange = (newLang: ProgrammingLanguage) => {
+    saveUserCode(problem.id, selectedLang, code);
     setSelectedLang(newLang);
-    setCode(problem.starterCode[newLang] || '// Write solution code here');
+    const nextCode = loadSavedCode(problem.id, newLang, problem.starterCode?.[newLang] || '// Write solution code here');
+    setCode(nextCode);
   };
 
   const handleResetCode = () => {
-    setCode(problem.starterCode[selectedLang] || '');
+    const defaultCode = problem.starterCode?.[selectedLang] || '';
+    setCode(defaultCode);
+    saveUserCode(problem.id, selectedLang, defaultCode);
     setSubmission(null);
   };
+
 
   const handleRunCode = async () => {
     if (!user) {
@@ -84,6 +120,7 @@ export const ProblemDetailPage: React.FC = () => {
       return;
     }
 
+    saveUserCode(problem.id, selectedLang, code);
     setIsRunning(true);
     setRightTab('editor');
     const result = await runCodeExecution({
@@ -102,6 +139,7 @@ export const ProblemDetailPage: React.FC = () => {
       return;
     }
 
+    saveUserCode(problem.id, selectedLang, code);
     setIsRunning(true);
     setRightTab('editor');
     const result = await runCodeExecution({
@@ -114,6 +152,8 @@ export const ProblemDetailPage: React.FC = () => {
     setIsRunning(false);
 
     if (result.status === 'Accepted') {
+      saveUserCode(problem.id, selectedLang, code);
+
       // 1. Mark Problem Solved & Update User Rating/XP in DB
       markProblemSolved(problem.id, problem.difficulty);
 
@@ -361,8 +401,9 @@ export const ProblemDetailPage: React.FC = () => {
                 <CodeEditor
                   language={selectedLang}
                   code={code}
-                  onChange={setCode}
+                  onChange={handleCodeChange}
                   onLanguageChange={handleLanguageChange}
+
                   onReset={handleResetCode}
                   onRun={handleRunCode}
                   onSubmit={handleSubmitCode}
