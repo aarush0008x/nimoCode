@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../services/db';
-import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission, UserReview } from '../types';
+import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission, UserReview, Achievement } from '../types';
 
 interface DbContextType {
   problems: Problem[];
@@ -10,6 +10,7 @@ interface DbContextType {
   solutions: SolutionPost[];
   submissions: Submission[];
   reviews: UserReview[];
+  achievements: Achievement[];
   refreshDb: () => void;
   addProblem: typeof db.addProblem;
   updateProblem: typeof db.updateProblem;
@@ -28,9 +29,12 @@ interface DbContextType {
   upvoteSolution: typeof db.upvoteSolution;
   addReview: typeof db.addReview;
   likeReview: typeof db.likeReview;
+  addAchievement: typeof db.addAchievement;
+  deleteAchievement: typeof db.deleteAchievement;
 }
 
 const DbContext = createContext<DbContextType | undefined>(undefined);
+
 
 import { getApiUrl } from '../utils/apiConfig';
 
@@ -42,6 +46,7 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [solutions, setSolutions] = useState<SolutionPost[]>(() => db.getSolutions());
   const [submissions, setSubmissions] = useState<Submission[]>(() => db.getSubmissions());
   const [reviews, setReviews] = useState<UserReview[]>(() => db.getReviews());
+  const [achievements, setAchievements] = useState<Achievement[]>(() => db.getAchievements());
 
   const refreshDb = () => {
     setProblems(db.getProblems());
@@ -51,7 +56,9 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     setSolutions(db.getSolutions());
     setSubmissions(db.getSubmissions());
     setReviews(db.getReviews());
+    setAchievements(db.getAchievements());
   };
+
 
 
   useEffect(() => {
@@ -228,9 +235,13 @@ export const DbProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         addSolution: db.addSolution,
         upvoteSolution: db.upvoteSolution,
         addReview: db.addReview,
-        likeReview: db.likeReview
+        likeReview: db.likeReview,
+        achievements,
+        addAchievement: db.addAchievement,
+        deleteAchievement: db.deleteAchievement
       }}
     >
+
       {children}
     </DbContext.Provider>
   );

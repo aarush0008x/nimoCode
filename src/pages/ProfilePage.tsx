@@ -15,6 +15,8 @@ import {
 
 import { GitHubIcon, LinkedInIcon, TwitterIcon } from '../components/common/SocialIcons';
 import { useAuth } from '../context/AuthContext';
+import { useDb } from '../context/DbContext';
+import { evaluateUserAchievements } from '../utils/achievementEvaluator';
 
 import { ContributionHeatmap } from '../components/profile/ContributionHeatmap';
 import { SkillRadar } from '../components/profile/SkillRadar';
@@ -30,6 +32,7 @@ import { getRankDivision } from '../utils/ranks';
 
 export const ProfilePage: React.FC = () => {
   const { user } = useAuth();
+  const { achievements } = useDb();
   const [activeTab, setActiveTab] = useState<'overview' | 'achievements' | 'friends'>('overview');
   const [showCertificateModal, setShowCertificateModal] = useState(false);
   const [showQuestsModal, setShowQuestsModal] = useState(false);
@@ -70,9 +73,11 @@ export const ProfilePage: React.FC = () => {
   }
 
   const xpPercent = Math.min(100, Math.floor((user.currentXP / user.nextLevelXP) * 100));
+  const evaluatedAchievements = evaluateUserAchievements(user, achievements);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 space-y-8">
+
       {/* Profile Header Banner */}
       <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs relative overflow-hidden space-y-6">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
@@ -303,7 +308,7 @@ export const ProfilePage: React.FC = () => {
               : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900'
           }`}
         >
-          Achievements ({user.achievements.length})
+          Achievements ({evaluatedAchievements.filter(a => a.unlocked).length} / {evaluatedAchievements.length})
         </button>
       </div>
 
@@ -392,10 +397,16 @@ export const ProfilePage: React.FC = () => {
 
       {/* Achievements Tab Content */}
       {activeTab === 'achievements' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {user.achievements.map(ach => (
-            <AchievementCard key={ach.id} achievement={ach} />
-          ))}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between text-xs text-neutral-400 font-mono px-1">
+            <span>UNLOCKED: {evaluatedAchievements.filter(a => a.unlocked).length} OF {evaluatedAchievements.length}</span>
+            <span>TOTAL XP FROM ACHIEVEMENTS: +{evaluatedAchievements.filter(a => a.unlocked).length * 250} XP</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {evaluatedAchievements.map(ach => (
+              <AchievementCard key={ach.id} achievement={ach} />
+            ))}
+          </div>
         </div>
       )}
 

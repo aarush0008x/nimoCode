@@ -1,7 +1,8 @@
 import { generateLeetCode2000Problems } from '../data/leetcodeDataset';
 import { MOCK_CONTESTS } from '../data/contests';
-import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission, UserReview } from '../types';
+import type { Problem, Contest, LeaderboardEntry, DiscussionPost, SolutionPost, Submission, UserReview, Achievement } from '../types';
 import { getApiUrl } from '../utils/apiConfig';
+
 
 
 const LEETCODE_2000_PROBLEMS = generateLeetCode2000Problems();
@@ -531,6 +532,37 @@ export const db = {
 
       window.dispatchEvent(new Event('nimocode_db_update'));
     }
+  },
+
+  // ACHIEVEMENTS
+  getAchievements: (): Achievement[] => {
+    try {
+      const data = localStorage.getItem('nimocode_custom_achievements_v1');
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  addAchievement: (achievement: Achievement): Achievement => {
+    const achievements = db.getAchievements();
+    const newAchievement: Achievement = {
+      ...achievement,
+      id: achievement.id || `ach-${Date.now()}`
+    };
+    const updated = [newAchievement, ...achievements];
+    localStorage.setItem('nimocode_custom_achievements_v1', JSON.stringify(updated));
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return newAchievement;
+  },
+
+  deleteAchievement: (id: string): boolean => {
+    const achievements = db.getAchievements();
+    const filtered = achievements.filter(a => a.id !== id);
+    localStorage.setItem('nimocode_custom_achievements_v1', JSON.stringify(filtered));
+    window.dispatchEvent(new Event('nimocode_db_update'));
+    return true;
   }
 };
+
 

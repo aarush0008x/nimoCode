@@ -21,6 +21,9 @@ import {
   Mail
 } from 'lucide-react';
 import type { Category, Difficulty } from '../types';
+import { BUILT_IN_ACHIEVEMENTS } from '../utils/achievementEvaluator';
+
+
 
 export const AdminPage: React.FC = () => {
   const {
@@ -35,7 +38,10 @@ export const AdminPage: React.FC = () => {
     updateUserRole,
     toggleUserBan,
     deleteUser,
-    deleteDiscussion
+    deleteDiscussion,
+    achievements,
+    addAchievement,
+    deleteAchievement
   } = useDb();
 
   const navigate = useNavigate();
@@ -55,7 +61,36 @@ export const AdminPage: React.FC = () => {
     navigate('/admin/login');
   };
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'problems' | 'contests' | 'users' | 'tickets' | 'broadcast' | 'community' | 'waf'>('analytics');
+    // Achievements Creation State
+  const [showAddAchModal, setShowAddAchModal] = useState(false);
+  const [newAchTitle, setNewAchTitle] = useState('');
+  const [newAchDesc, setNewAchDesc] = useState('');
+  const [newAchIcon, setNewAchIcon] = useState('🏆');
+  const [newAchTarget, setNewAchTarget] = useState(1);
+  const [newAchXp, setNewAchXp] = useState(500);
+
+  const handleCreateAchievement = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAchTitle.trim() || !newAchDesc.trim()) return;
+
+    addAchievement({
+      id: `ach-custom-${Date.now()}`,
+      title: newAchTitle.trim(),
+      description: newAchDesc.trim(),
+      icon: newAchIcon || '🏆',
+      unlocked: false,
+      progress: 0,
+      maxProgress: newAchTarget || 1
+    });
+
+    setNewAchTitle('');
+    setNewAchDesc('');
+    setNewAchTarget(1);
+    setNewAchXp(500);
+    setShowAddAchModal(false);
+  };
+
+  const [activeTab, setActiveTab] = useState<'analytics' | 'problems' | 'contests' | 'users' | 'tickets' | 'broadcast' | 'community' | 'waf' | 'achievements'>('analytics');
   const [problemSearch, setProblemSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
@@ -327,7 +362,7 @@ export const AdminPage: React.FC = () => {
 
       {/* Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-        {(['analytics', 'problems', 'contests', 'users', 'tickets', 'broadcast', 'community', 'waf'] as const).map(tab => (
+        {(['analytics', 'problems', 'contests', 'users', 'achievements', 'tickets', 'broadcast', 'community', 'waf'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -337,7 +372,12 @@ export const AdminPage: React.FC = () => {
                 : 'bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800'
             }`}
           >
-            {tab === 'waf' ? (
+            {tab === 'achievements' ? (
+              <>
+                <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                <span>Achievements ({BUILT_IN_ACHIEVEMENTS.length + achievements.length})</span>
+              </>
+            ) : tab === 'waf' ? (
               <>
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
                 <span>WAF Security</span>
@@ -1062,6 +1102,215 @@ export const AdminPage: React.FC = () => {
           </div>
         </div>
       )}
+      {/* 9. ACHIEVEMENTS MANAGER TAB */}
+      {activeTab === 'achievements' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-neutral-950 dark:text-white">Platform Achievements &amp; Badges</h2>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-xs font-mono font-bold">
+                  {BUILT_IN_ACHIEVEMENTS.length + achievements.length} Total Badges
+                </span>
+              </div>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                Manage global achievement criteria, reward XP tiers, and deploy custom event milestones for competitive candidates.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowAddAchModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-neutral-950 text-xs font-extrabold shadow-md transition-all shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Achievement</span>
+            </button>
+          </div>
+
+          {/* Grid of Achievements */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Custom Admin Achievements */}
+            {achievements.map((ach) => (
+              <div
+                key={ach.id}
+                className="p-5 rounded-3xl bg-neutral-950 text-white border border-amber-500/30 shadow-lg relative space-y-3"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-2xl">
+                    {ach.icon}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-mono font-bold uppercase">
+                      Admin Custom
+                    </span>
+                    <button
+                      onClick={() => deleteAchievement(ach.id)}
+                      className="p-1.5 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors"
+                      title="Delete Achievement"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-extrabold text-sm text-white">{ach.title}</h4>
+                  <p className="text-xs text-neutral-400 mt-1 leading-relaxed">{ach.description}</p>
+                </div>
+
+                <div className="pt-2 border-t border-neutral-800 flex items-center justify-between text-xs font-mono text-neutral-400">
+                  <span>Target Scope: {ach.maxProgress || 1}</span>
+                  <span className="text-emerald-400 font-bold">+XP Reward</span>
+                </div>
+              </div>
+            ))}
+
+            {/* Built-in Achievements */}
+            {BUILT_IN_ACHIEVEMENTS.map((ach) => (
+              <div
+                key={ach.id}
+                className="p-5 rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs space-y-3"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="w-12 h-12 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-2xl">
+                    {ach.icon}
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 text-[10px] font-mono font-bold uppercase">
+                    Built-in
+                  </span>
+                </div>
+
+                <div>
+                  <h4 className="font-extrabold text-sm text-neutral-900 dark:text-white">{ach.title}</h4>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">{ach.description}</p>
+                </div>
+
+                <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs font-mono text-neutral-400">
+                  <span>Target: {ach.requiredValue || 1}</span>
+                  <span className="text-amber-500 font-bold">+{ach.xpReward || 250} XP</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* CREATE ACHIEVEMENT MODAL */}
+      {showAddAchModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl animate-scale-up">
+            <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-amber-500" />
+                <h3 className="font-bold text-base text-neutral-950 dark:text-white">Create New Achievement</h3>
+              </div>
+              <button onClick={() => setShowAddAchModal(false)} className="text-neutral-400 hover:text-neutral-600">✕</button>
+            </div>
+
+            <form onSubmit={handleCreateAchievement} className="space-y-4 text-xs font-medium">
+              <div>
+                <label className="text-neutral-600 dark:text-neutral-400">Achievement Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g., Codeforces Master or Hackathon Champion"
+                  value={newAchTitle}
+                  onChange={e => setNewAchTitle(e.target.value)}
+                  className="w-full mt-1 p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-neutral-600 dark:text-neutral-400">Description *</label>
+                <textarea
+                  required
+                  rows={2}
+                  placeholder="Describe what the user must do to unlock this badge..."
+                  value={newAchDesc}
+                  onChange={e => setNewAchDesc(e.target.value)}
+                  className="w-full mt-1 p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-neutral-600 dark:text-neutral-400">Badge Icon</label>
+                  <select
+                    value={newAchIcon}
+                    onChange={e => setNewAchIcon(e.target.value)}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white text-base"
+                  >
+                    <option value="🏆">🏆 Trophy</option>
+                    <option value="👑">👑 Crown</option>
+                    <option value="🔥">🔥 Fire</option>
+                    <option value="⚡">⚡ Lightning</option>
+                    <option value="🚀">🚀 Rocket</option>
+                    <option value="💎">💎 Diamond</option>
+                    <option value="🧠">🧠 Brain</option>
+                    <option value="⚔️">⚔️ Swords</option>
+                    <option value="🎖️">🎖️ Medal</option>
+                    <option value="🌟">🌟 Star</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-neutral-600 dark:text-neutral-400">Solved Target</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newAchTarget}
+                    onChange={e => setNewAchTarget(Number(e.target.value))}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-neutral-600 dark:text-neutral-400">XP Reward</label>
+                  <input
+                    type="number"
+                    min={50}
+                    step={50}
+                    value={newAchXp}
+                    onChange={e => setNewAchXp(Number(e.target.value))}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Live Preview Card */}
+              <div className="p-4 rounded-2xl bg-neutral-950 text-white border border-neutral-800 space-y-2">
+                <div className="text-[10px] font-mono uppercase text-amber-400 font-bold">Badge Live Preview</div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-xl">
+                    {newAchIcon}
+                  </div>
+                  <div>
+                    <div className="font-bold text-xs">{newAchTitle || 'Untitled Achievement'}</div>
+                    <div className="text-[11px] text-neutral-400">{newAchDesc || 'Achievement description preview...'}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddAchModal(false)}
+                  className="px-4 py-2 rounded-xl border text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-neutral-950 text-xs font-bold"
+                >
+                  Deploy Achievement
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
