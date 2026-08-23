@@ -16,7 +16,8 @@ import {
   Zap,
   Lock,
   UserCheck,
-  Eye
+  Eye,
+  History
 } from 'lucide-react';
 
 import { useDb } from '../context/DbContext';
@@ -26,7 +27,9 @@ import { SubmissionResult } from '../components/problem/SubmissionResult';
 import { AIChat } from '../components/problem/AIChat';
 import { SolutionExplorer } from '../components/problem/SolutionExplorer';
 import { ProblemDiscussion } from '../components/problem/ProblemDiscussion';
+import { ProblemSubmissions } from '../components/problem/ProblemSubmissions';
 import { ProblemTimer } from '../components/problem/ProblemTimer';
+
 import { AICodeReviewModal } from '../components/problem/AICodeReviewModal';
 import { AIDebuggerModal } from '../components/problem/AIDebuggerModal';
 import { AlgorithmVisualizerModal } from '../components/problem/AlgorithmVisualizerModal';
@@ -43,7 +46,7 @@ import confetti from 'canvas-confetti';
 export const ProblemDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { problems, addSubmission, updateProblem } = useDb();
+  const { problems, addSubmission, updateProblem, submissions } = useDb();
   const { markProblemSolved, user } = useAuth();
 
   const problem = problems.find(p => p.id === id || p.number.toString() === id) || problems[0];
@@ -51,6 +54,10 @@ export const ProblemDetailPage: React.FC = () => {
   const currentIndex = problems.findIndex(p => p.id === problem.id);
   const prevProblem = currentIndex > 0 ? problems[currentIndex - 1] : null;
   const nextProblem = currentIndex >= 0 && currentIndex < problems.length - 1 ? problems[currentIndex + 1] : null;
+
+  const currentProblemSubmissions = submissions.filter(
+    s => s.problemId === problem.id || s.problemId === problem.number?.toString()
+  );
 
   const getStorageKey = (probId: string | number, lang: ProgrammingLanguage) =>
     `nimocode_saved_code_${probId}_${lang}`;
@@ -69,7 +76,8 @@ export const ProblemDetailPage: React.FC = () => {
     } catch {}
   };
 
-  const [activeTab, setActiveTab] = useState<'description' | 'solutions' | 'discussions'>('description');
+  const [activeTab, setActiveTab] = useState<'description' | 'solutions' | 'submissions' | 'discussions'>('description');
+
   const [selectedLang, setSelectedLang] = useState<ProgrammingLanguage>('cpp');
   const [code, setCode] = useState<string>(() =>
     loadSavedCode(problem.id, 'cpp', problem.starterCode?.cpp || '// Write solution code here')
@@ -301,6 +309,17 @@ export const ProblemDetailPage: React.FC = () => {
               Solutions
             </button>
             <button
+              onClick={() => setActiveTab('submissions')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl transition-all ${
+                activeTab === 'submissions'
+                  ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white font-bold shadow-xs'
+                  : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+              }`}
+            >
+              <History className="w-3.5 h-3.5 text-sky-500" />
+              <span>Submissions{currentProblemSubmissions.length > 0 ? ` (${currentProblemSubmissions.length})` : ''}</span>
+            </button>
+            <button
               onClick={() => setActiveTab('discussions')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl transition-all ${
                 activeTab === 'discussions'
@@ -312,6 +331,7 @@ export const ProblemDetailPage: React.FC = () => {
               Discussions
             </button>
           </div>
+
 
           {/* Tab Contents */}
           <div className="flex-1 p-5 overflow-y-auto max-h-[700px] space-y-6">
@@ -388,9 +408,20 @@ export const ProblemDetailPage: React.FC = () => {
             )}
 
             {activeTab === 'solutions' && <SolutionExplorer problemId={problem.id} />}
+            {activeTab === 'submissions' && (
+              <ProblemSubmissions
+                problemId={problem.id}
+                onLoadCode={(loadedCode, lang) => {
+                  setSelectedLang(lang);
+                  setCode(loadedCode);
+                  saveUserCode(problem.id, lang, loadedCode);
+                }}
+              />
+            )}
             {activeTab === 'discussions' && <ProblemDiscussion problemId={problem.id} problemTitle={problem.title} />}
           </div>
         </div>
+
 
 
         {/* RIGHT PANEL: Code Editor or AI Assistant */}
