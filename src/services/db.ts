@@ -52,18 +52,12 @@ export type DbUserRecord = LeaderboardEntry & {
 };
 
 
-// Seed initial database if empty
+// Seed initial database if empty & purge bloat
 const seedDatabaseIfEmpty = () => {
+  // Purge oversized 2000 problems from localStorage to prevent quota exceeded error
   try {
-    const existingProbs = localStorage.getItem(STORAGE_KEYS.PROBLEMS);
-    if (!existingProbs || JSON.parse(existingProbs).length < LEETCODE_2000_PROBLEMS.length || existingProbs.includes('"solvedStatus":"solved"')) {
-      const cleanProbs = LEETCODE_2000_PROBLEMS.map(p => ({ ...p, solvedStatus: 'todo' as const }));
-      localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(cleanProbs));
-    }
-  } catch {
-    const cleanProbs = LEETCODE_2000_PROBLEMS.map(p => ({ ...p, solvedStatus: 'todo' as const }));
-    localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(cleanProbs));
-  }
+    localStorage.removeItem(STORAGE_KEYS.PROBLEMS);
+  } catch {}
 
   // Ensure clean contests without dummy test items
   try {
@@ -79,17 +73,6 @@ const seedDatabaseIfEmpty = () => {
 
   if (!localStorage.getItem(STORAGE_KEYS.CONTESTS)) {
     localStorage.setItem(STORAGE_KEYS.CONTESTS, JSON.stringify([]));
-  }
-
-
-  // Clear old fake discussions
-  try {
-    const existingDisc = localStorage.getItem(STORAGE_KEYS.DISCUSSIONS);
-    if (existingDisc && existingDisc.includes('cpp_master')) {
-      localStorage.removeItem(STORAGE_KEYS.DISCUSSIONS);
-    }
-  } catch {
-    // Ignore
   }
 
   if (!localStorage.getItem(STORAGE_KEYS.DISCUSSIONS)) {
@@ -122,19 +105,23 @@ const seedDatabaseIfEmpty = () => {
   } catch {}
 };
 
-
 seedDatabaseIfEmpty();
+
+// Custom user-added problems cache
+let inMemoryProblems: Problem[] = [...LEETCODE_2000_PROBLEMS];
 
 // Database Service Interface connected to Realtime Express MongoDB Server
 export const db = {
   // PROBLEMS
   getProblems: (): Problem[] => {
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.PROBLEMS);
-      return data ? JSON.parse(data) : LEETCODE_2000_PROBLEMS;
-    } catch {
-      return LEETCODE_2000_PROBLEMS;
-    }
+      const customData = localStorage.getItem('nimocode_custom_problems');
+      if (customData) {
+        const customProbs: Problem[] = JSON.parse(customData);
+        return [...customProbs, ...inMemoryProblems];
+      }
+    } catch {}
+    return inMemoryProblems;
   },
 
   addProblem: (problemData: Omit<Problem, 'id' | 'totalSubmissions' | 'acceptanceRate' | 'solvedStatus'>): Problem => {
@@ -151,30 +138,40 @@ export const db = {
       solvedStatus: 'todo'
     };
 
-    const updated = [newProblem, ...problems];
-    localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(updated));
+    inMemoryProblems = [newProblem, ...inMemoryProblems];
+    try {
+      const customData = localStorage.getItem('nimocode_custom_problems');
+      const customProbs = customData ? JSON.parse(customData) : [];
+      localStorage.setItem('nimocode_custom_problems', JSON.stringify([newProblem, ...customProbs]));
+    } catch {}
+
     window.dispatchEvent(new Event('nimocode_db_update'));
     return newProblem;
   },
 
   updateProblem: (id: string, updatedFields: Partial<Problem>): Problem | null => {
-    const problems = db.getProblems();
-    const index = problems.findIndex(p => p.id === id);
-    if (index === -1) return null;
-
-    problems[index] = { ...problems[index], ...updatedFields };
-    localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(problems));
+    const index = inMemoryProblems.findIndex(p => p.id === id);
+    if (index !== -1) {
+      inMemoryProblems[index] = { ...inMemoryProblems[index], ...updatedFields };
+    }
     window.dispatchEvent(new Event('nimocode_db_update'));
-    return problems[index];
+    return inMemoryProblems[index] || null;
   },
 
   deleteProblem: (id: string): boolean => {
-    const problems = db.getProblems();
-    const filtered = problems.filter(p => p.id !== id);
-    localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(filtered));
+    inMemoryProblems = inMemoryProblems.filter(p => p.id !== id);
+    try {
+      const customData = localStorage.getItem('nimocode_custom_problems');
+      if (customData) {
+        const customProbs: Problem[] = JSON.parse(customData);
+        const filtered = customProbs.filter(p => p.id !== id);
+        localStorage.setItem('nimocode_custom_problems', JSON.stringify(filtered));
+      }
+    } catch {}
     window.dispatchEvent(new Event('nimocode_db_update'));
     return true;
   },
+
 
   // CONTESTS
   getContests: (): Contest[] => {

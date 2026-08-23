@@ -117,10 +117,8 @@ export const syncGitHubRepository = async (
   if (onProgress) onProgress('Persisting verified solutions and calculating global ranking...', 85, targetCount);
   await new Promise(r => setTimeout(r, 250));
 
-  // Save updated problems
-  localStorage.setItem('nimocode_problems_v1', JSON.stringify(updatedProblems));
-
   // Compute new user stats
+
   const totalSolved = newSolvedIds.length;
   const newXP = (currentUser.currentXP || 0) + xpGained;
   const newLevel = Math.max(currentUser.level || 1, Math.floor(newXP / 1000) + 1);
