@@ -11,14 +11,16 @@ import {
 } from 'lucide-react';
 import { ScrollReveal } from '../components/common/ScrollReveal';
 import { useDb } from '../context/DbContext';
+import { useAuth } from '../context/AuthContext';
 import { ProblemCard } from '../components/problem/ProblemCard';
 import { ContestCard } from '../components/contest/ContestCard';
 import { PodiumCard } from '../components/leaderboard/PodiumCard';
 import { RealtimeReviewsSection } from '../components/landing/RealtimeReviewsSection';
 
 export const LandingPage: React.FC = () => {
-
+  const { user } = useAuth();
   const { problems, contests, users, submissions } = useDb();
+
   const [heroRunning, setHeroRunning] = useState(false);
   const [heroExecuted, setHeroExecuted] = useState(false);
 
@@ -85,14 +87,24 @@ export const LandingPage: React.FC = () => {
                 <span>Explore 2,000+ Problems</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
-              <Link
-                to="/signup"
-                className="w-full sm:w-auto px-7 py-3.5 rounded-2xl border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-bold text-xs transition-all flex items-center justify-center gap-2"
-              >
-                <span>Create Account</span>
-              </Link>
+              {user ? (
+                <Link
+                  to="/profile"
+                  className="w-full sm:w-auto px-7 py-3.5 rounded-2xl border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-bold text-xs transition-all flex items-center justify-center gap-2"
+                >
+                  <span>Go to Profile &amp; Stats</span>
+                </Link>
+              ) : (
+                <Link
+                  to="/signup"
+                  className="w-full sm:w-auto px-7 py-3.5 rounded-2xl border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-bold text-xs transition-all flex items-center justify-center gap-2"
+                >
+                  <span>Create Account</span>
+                </Link>
+              )}
             </div>
           </ScrollReveal>
+
 
           {/* Animated Activity Strip */}
           <ScrollReveal delayMs={400}>
@@ -395,12 +407,13 @@ public:
 
             <div className="pt-2 relative z-10">
               <Link
-                to="/signup"
+                to={user ? "/problems" : "/signup"}
                 className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-white text-neutral-950 hover:bg-neutral-100 font-bold text-xs shadow-lg transition-all hover:scale-105"
               >
-                <span>Enter NimoCode →</span>
+                <span>{user ? "Continue Practicing →" : "Enter NimoCode →"}</span>
               </Link>
             </div>
+
           </div>
         </ScrollReveal>
       </section>
